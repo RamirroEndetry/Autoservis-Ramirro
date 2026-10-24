@@ -25,6 +25,8 @@ jobs:
         run: |
           node --check js/app.js
           node --check js/pdf.js
+          node --check js/cloud.js
+          node tests/sync-model.cjs
           node tests/catalogue.cjs
           node tests/ford-catalogue.cjs
           node tests/payment.cjs

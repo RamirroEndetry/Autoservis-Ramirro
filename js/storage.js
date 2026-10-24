@@ -15,13 +15,14 @@ const STORAGE_KEYS = {
 const SCHEMA_VERSION = 3;
 
 class VehicleStorage {
+  static backend = localStorage;
   /* ------------------------------------------------------------------ */
   /* Nízkoúrovňové čtení a zápis                                        */
   /* ------------------------------------------------------------------ */
 
   static read(key, fallback) {
     try {
-      const raw = localStorage.getItem(key);
+      const raw = this.backend.getItem(key);
       return raw ? JSON.parse(raw) : fallback;
     } catch (e) {
       console.error("Nepodařilo se načíst " + key, e);
@@ -31,11 +32,11 @@ class VehicleStorage {
 
   static write(key, value) {
     try {
-      localStorage.setItem(key, JSON.stringify(value));
+      this.backend.setItem(key, JSON.stringify(value));
       return true;
     } catch (e) {
       console.error("Nepodařilo se uložit " + key, e);
-      return false;
+      throw e;
     }
   }
 
@@ -52,7 +53,7 @@ class VehicleStorage {
    * Spouští se při startu, je idempotentní.
    */
   static migrate() {
-    const stored = parseInt(localStorage.getItem(STORAGE_KEYS.SCHEMA) || "1", 10);
+    const stored = parseInt(this.backend.getItem(STORAGE_KEYS.SCHEMA) || "1", 10);
     if (stored >= SCHEMA_VERSION) return;
 
     const vehicles = this.read(STORAGE_KEYS.VEHICLES, []);
@@ -95,7 +96,7 @@ class VehicleStorage {
     });
     this.write(STORAGE_KEYS.SERVICES, services);
 
-    localStorage.setItem(STORAGE_KEYS.SCHEMA, String(SCHEMA_VERSION));
+    this.backend.setItem(STORAGE_KEYS.SCHEMA, String(SCHEMA_VERSION));
     console.info("Data migrována na schéma verze " + SCHEMA_VERSION + ".");
   }
 
@@ -150,12 +151,12 @@ class VehicleStorage {
   }
 
   static getActiveVehicleId() {
-    return localStorage.getItem(STORAGE_KEYS.ACTIVE_VEHICLE_ID) || null;
+    return this.backend.getItem(STORAGE_KEYS.ACTIVE_VEHICLE_ID) || null;
   }
 
   static setActiveVehicleId(id) {
-    if (id) localStorage.setItem(STORAGE_KEYS.ACTIVE_VEHICLE_ID, id);
-    else localStorage.removeItem(STORAGE_KEYS.ACTIVE_VEHICLE_ID);
+    if (id) this.backend.setItem(STORAGE_KEYS.ACTIVE_VEHICLE_ID, id);
+    else this.backend.removeItem(STORAGE_KEYS.ACTIVE_VEHICLE_ID);
   }
 
   static getActiveVehicle() {
@@ -250,9 +251,9 @@ class VehicleStorage {
    * uživatel vysypal" od "prázdná garáž, protože je to nový prohlížeč".
    */
   static isInitialized() {
-    if (localStorage.getItem(STORAGE_KEYS.INITIALIZED) === "1") return true;
+    if (this.backend.getItem(STORAGE_KEYS.INITIALIZED) === "1") return true;
     // Prázdné pole samo o sobě nestačí – takový klíč umí vytvořit i migrace.
-    const raw = localStorage.getItem(STORAGE_KEYS.VEHICLES);
+    const raw = this.backend.getItem(STORAGE_KEYS.VEHICLES);
     if (raw === null) return false;
     try {
       const list = JSON.parse(raw);
@@ -263,7 +264,7 @@ class VehicleStorage {
   }
 
   static markInitialized() {
-    localStorage.setItem(STORAGE_KEYS.INITIALIZED, "1");
+    this.backend.setItem(STORAGE_KEYS.INITIALIZED, "1");
   }
 
   /* ------------------------------------------------------------------ */
@@ -344,7 +345,7 @@ class VehicleStorage {
     this.setActiveVehicleId(wanted);
 
     // Data ze starší verze je nutné znovu protáhnout migrací.
-    localStorage.setItem(STORAGE_KEYS.SCHEMA, "1");
+    this.backend.setItem(STORAGE_KEYS.SCHEMA, "1");
     this.migrate();
 
     return {
@@ -360,7 +361,7 @@ class VehicleStorage {
    * záloha znovu sama nenačetla proti vůli uživatele.
    */
   static clearAll() {
-    Object.keys(STORAGE_KEYS).forEach(k => localStorage.removeItem(STORAGE_KEYS[k]));
+    Object.keys(STORAGE_KEYS).forEach(k => this.backend.removeItem(STORAGE_KEYS[k]));
     this.markInitialized();
   }
 }

@@ -162,6 +162,7 @@ const UI = {
   },
 
   closeModal(id) {
+    if (id === 'vehicle-modal' && typeof CloudGarage !== 'undefined') CloudGarage.draft = !!CloudGarage.beforeVehicleDraft;
     const el = document.getElementById(id);
     if (!el) return;
     el.hidden = true;
@@ -1304,6 +1305,7 @@ class App {
   }
 
   static startEdit(recordId) {
+    if (typeof CloudGarage !== "undefined") CloudGarage.draft = true;
     const record = VehicleStorage.getService(recordId);
     if (!record) return;
 
@@ -1362,6 +1364,7 @@ class App {
   }
 
   static resetForm() {
+    if (typeof CloudGarage !== "undefined") CloudGarage.draft = false;
     InvoiceImport.reset();
     this.editingId = null;
     this.selected = new Map();
@@ -1497,6 +1500,7 @@ class App {
   /* ------------------------- Modál: stroj ----------------------------- */
 
   static openVehicleModal(vehicle) {
+    if (typeof CloudGarage !== "undefined") { CloudGarage.beforeVehicleDraft = CloudGarage.draft; CloudGarage.draft = true; }
     const isEdit = !!vehicle;
     document.getElementById("vehicle-modal-title").textContent = isEdit ? "Upravit stroj" : "Přidat stroj";
     document.getElementById("veh-id").value = isEdit ? vehicle.id : "";
@@ -2099,7 +2103,7 @@ class App {
     document.getElementById("wipe-btn").addEventListener("click", async () => {
       const ok = await UI.confirm({
         title: "Smazat všechna data",
-        text: "Nenávratně smaže všechny stroje i servisní záznamy z tohoto prohlížeče. Máte staženou zálohu?",
+        text: "Smaže všechny stroje i servisní záznamy také ze společné databáze a ostatních zařízení. Máte staženou zálohu?",
         confirmLabel: "Ano, smazat vše"
       });
       if (!ok) return;
@@ -2114,5 +2118,5 @@ class App {
   }
 }
 
-document.addEventListener("DOMContentLoaded", () => App.init());
+document.addEventListener("DOMContentLoaded", () => CloudGarage.boot());
 

@@ -26,6 +26,7 @@ if (process.argv.includes('--browser')) {
     const browser = await chromium.launch({channel:'msedge',headless:true});
     try {
       const page = await browser.newPage({viewport:{width:1000,height:1200}});
+      await require("./local-app.cjs")(page);
       const errors = [];
       page.on('pageerror', e => errors.push(e.message));
       // Prove QR generation needs no network; PDF fallback is browser printing.

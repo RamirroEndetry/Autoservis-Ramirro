@@ -1203,3 +1203,18 @@ fieldset { border: none; }
   .invoice-row { grid-template-columns: minmax(0, 1fr) auto; }
   .invoice-row > input:first-child { grid-column: 1 / -1; }
 }
+/* Authentication and cloud status stay usable on narrow screens. */
+.auth-gate { min-height:100vh; display:grid; place-items:center; padding:24px; background:radial-gradient(ellipse at top,#213425,#0d1119 65%); }
+.auth-card { width:min(100%,430px); padding:32px; border:1px solid #303a45; border-radius:24px; background:#151b25; box-shadow:0 24px 80px #0005; }
+.auth-card h1 { margin:12px 0; font-size:1.7rem; }
+.auth-card p { color:#a4b0c1; margin:12px 0 20px; }
+.auth-icon { color:#58bd2a; font-size:2rem; }
+.auth-card form { display:grid; gap:12px; }
+.auth-card label { margin-top:8px; }
+.auth-card input { min-height:46px; width:100%; padding:10px 12px; color:#f0f3f7; background:#0e131b; border:1px solid #384352; border-radius:10px; }
+.auth-card .btn-primary { background:#4dad2b; border-color:#4dad2b; }
+.cloud-bar { position:relative; z-index:5; display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; padding:12px 24px; background:#151e29; border-bottom:1px solid #364150; font-size:.85rem; }
+.cloud-bar #sync-status { flex:1 1 260px; }
+.cloud-bar[data-state=saved] #sync-status { color:#90d879; }
+.cloud-bar[data-state=error] #sync-status { color:#ffbb82; }
+#auth-gate[hidden], #private-app[hidden], #password-form[hidden], #login-form[hidden] { display:none !important; }

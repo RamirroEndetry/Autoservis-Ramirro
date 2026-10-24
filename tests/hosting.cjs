@@ -20,6 +20,7 @@ const server = http.createServer((req,res) => {
   const browser = await chromium.launch({channel:'msedge',headless:true});
   try {
     const page = await browser.newPage();
+      await require("./local-app.cjs")(page);
     const errors = [], missing = [];
     page.on('pageerror', e => errors.push(e.message));
     page.on('response', r => {if(r.url().startsWith(base) && r.status() >= 400) missing.push(r.url());});
@@ -45,6 +46,7 @@ const server = http.createServer((req,res) => {
     assert.equal(exported.vehicles[0].id,'host-test');
     assert.equal(exported.services[0].payment.variableSymbol,'000123');
     const second = await browser.newPage();
+      await require("./local-app.cjs")(second);
     await second.goto(base);
     assert.equal(await second.evaluate(() => VehicleStorage.getVehicles().length),0,'Isolated browser has no shared records');
     assert.deepEqual(errors,[]);

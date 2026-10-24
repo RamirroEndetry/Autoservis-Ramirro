@@ -43,6 +43,7 @@ if (process.argv.includes('--browser')) {
     const browser = await chromium.launch({channel:'msedge',headless:true});
     try {
       const page = await browser.newPage();
+      await require("./local-app.cjs")(page);
       const errors = [];
       page.on('pageerror', e => errors.push(e.message));
       await page.goto(pathToFileURL(path.resolve('index.html')).href);

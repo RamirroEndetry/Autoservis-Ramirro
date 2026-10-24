@@ -14,6 +14,40 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body data-brand="audi">
+  <section id="auth-gate" class="auth-gate" aria-labelledby="auth-title">
+    <div class="auth-card">
+      <span class="auth-icon" aria-hidden="true">◆</span>
+      <h1 id="auth-title">Autoservis Ramirro</h1>
+      <p>Vaše soukromá servisní kniha</p>
+      <form id="login-form">
+        <label for="login-email">E-mail</label>
+        <input id="login-email" type="email" autocomplete="username" required>
+        <label for="login-password">Heslo</label>
+        <input id="login-password" type="password" autocomplete="current-password" required>
+        <button id="login-submit" class="btn btn-primary" disabled>Přihlásit se</button>
+        <button id="forgot-password" type="button" class="btn btn-ghost">Zapomenuté heslo</button>
+      </form>
+      <form id="password-form" hidden>
+        <label for="new-password">Nové heslo (alespoň 12 znaků)</label>
+        <input id="new-password" type="password" autocomplete="new-password" minlength="12" required>
+        <label for="new-password-again">Nové heslo znovu</label>
+        <input id="new-password-again" type="password" autocomplete="new-password" minlength="12" required>
+        <button class="btn btn-primary">Uložit nové heslo</button>
+      </form>
+      <p id="auth-message" role="status">Připojuji k přihlášení…</p>
+      <noscript>Pro přihlášení a práci s aplikací zapněte JavaScript.</noscript>
+    </div>
+  </section>
+  <div id="private-app" hidden>
+  <aside id="cloud-bar" class="cloud-bar" data-state="pending" aria-label="Účet a synchronizace">
+    <span id="account-label"></span>
+    <strong id="sync-status" role="status">Načítám databázi…</strong>
+    <button id="sync-retry" class="btn btn-ghost btn-sm">Synchronizovat</button>
+    <button id="sync-backup" class="btn btn-ghost btn-sm">Stáhnout zálohu</button>
+    <button id="sync-resolve" class="btn btn-danger btn-sm" hidden>Vyřešit konflikt</button>
+    <button id="legacy-import" class="btn btn-primary btn-sm" hidden>Převést původní garáž</button>
+    <button id="cloud-logout" class="btn btn-ghost btn-sm">Odhlásit</button>
+  </aside>
 
   <canvas id="bg-canvas" aria-hidden="true"></canvas>
 
@@ -55,7 +89,7 @@
       <h2>Garáž je zatím prázdná</h2>
       <p>
         Přidejte první auto nebo motocykl – nebo obnovte svůj vozový park ze zálohy.
-        Data zůstávají v tomto prohlížeči. Mezi zařízeními se automaticky nesynchronizují.
+        Uložená data jsou po přihlášení dostupná i na dalších zařízeních. Stav uložení najdete v horní liště.
       </p>
       <div class="empty-hero-actions">
         <button type="button" class="btn btn-ghost" data-action="add-vehicle">
@@ -480,9 +514,8 @@
       </div>
 
       <p class="muted-note">
-        Data jsou uložena pouze v tomto prohlížeči, a to zvlášť pro každou adresu, ze které aplikaci
-        otevřete (<code>file://</code> a <code>http://localhost</code> jsou dvě oddělené garáže).
-        Smazání historie prohlížeče data nenávratně odstraní – proto si zálohu občas stáhněte.
+        Potvrzené změny jsou uložené v soukromé databázi. Neodeslané změny zůstávají v tomto prohlížeči.
+        Import i smazání se po synchronizaci projeví na všech vašich zařízeních. Zálohu si pravidelně stáhněte.
       </p>
 
       <div id="backup-stats" class="backup-stats"></div>
@@ -503,7 +536,7 @@
           </div>
         </div>
 
-        <p class="muted-note">Zálohu si pravidelně stáhněte. GitHub neukládá vaši garáž; vymazání dat prohlížeče odstraní místní záznamy. Při přechodu z počítačové verze zde importujte její exportovanou zálohu.</p>
+        <p class="muted-note">Při přechodu z původní počítačové verze zde importujte její exportovanou zálohu. Než zavřete aplikaci, ověřte v horní liště „Uloženo v databázi“.</p>
       </div>
     </div>
   </div>
@@ -535,7 +568,7 @@
 
       <div class="danger-zone">
         <h4>Smazat všechna data</h4>
-        <p>Nenávratně odstraní všechny stroje i servisní záznamy z tohoto prohlížeče.</p>
+        <p>Odstraní všechny stroje i servisní záznamy také z databáze a ostatních zařízení.</p>
         <button type="button" id="wipe-btn" class="btn btn-danger btn-sm">
           <i class="fa-solid fa-trash-can" aria-hidden="true"></i> Smazat vše
         </button>
@@ -560,6 +593,11 @@
 
   <div id="toast-area" class="toast-area" aria-live="polite"></div>
 
+  </div>
+  <script src="js/vendor/supabase.js"></script>
+  <script src="js/cloud-config.js"></script>
+  <script src="js/sync-model.js"></script>
+  <script src="js/cloud.js"></script>
   <script src="js/database.js"></script>
   <script src="js/ford-data.js"></script>
   <script src="js/catalogue-data.js"></script>

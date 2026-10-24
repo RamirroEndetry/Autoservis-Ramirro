@@ -1,22 +1,34 @@
 # Servisní kniha
 
-Otevřete `index.html` v aktuálním Edge nebo Chrome. Data se ukládají v prohlížeči pro konkrétní adresu aplikace; před změnou adresy si exportujte zálohu.
+## Soukromá webová aplikace
 
-## Webová verze – GitHub Pages
+Adresa: https://ramirroendetry.github.io/Autoservis-Ramirro/
 
-Adresa nasazení: https://ramirroendetry.github.io/Autoservis-Ramirro/
+Web na GitHub Pages používá Supabase Auth a Postgres. Přihlášení je e-mailem a heslem, veřejná registrace je vypnutá. Přístup k datům vynucuje databáze: RLS dovolí číst pouze vlastní existující řádek, zapisovat lze jen přes funkci save_garage s kontrolou verze. Nového vlastníka může povolit pouze administrátor. Do kódu patří jen veřejný publishable key; nikdy secret nebo service_role.
 
-Publikování zajišťuje `.github/workflows/pages.yml` při změně větve `main`. V repozitáři musí být **Settings → Pages → Source: GitHub Actions**. Build `node scripts/build-site.cjs` kopíruje do nového adresáře `dist` pouze výslovně povolené soubory aplikace. Zálohy, soukromá garáž, testy a dokumentace se jako web nepublikují. Git ignoruje místní JSON zálohy, `js/garage-data.js` i testovací snímky.
+Po uložení sledujte stav **Uloženo v databázi** v horní liště. Čekající změny jsou uchované místně a po obnovení spojení se odešlou. Nové přihlášení a otevření garáže vyžaduje internet. Ostatní zařízení načítají změny každých 15 sekund při otevřené kartě, případně tlačítkem Synchronizovat. Rozpracovaný formulář synchronizaci pozastaví, aby se nepřepsal. V jednom profilu prohlížeče je povolená jedna aktivní karta aplikace.
 
-Nová instalace začíná prázdnou garáží. Pro přenos dat nejprve v původní aplikaci zvolte **Záloha → Stáhnout zálohu**, pak na webu **Importovat soubor zálohy → Připojit chybějící**. Import probíhá místně v prohlížeči. Úložiště není společná cloudová databáze; mezi zařízeními se nepřenáší automaticky a po vymazání dat prohlížeče je potřeba záloha. Web nemá přihlašování. Platební účet je součástí veřejné aplikace.
+Různé záznamy se slučují. Změny stejného záznamu nebo smazání vozidla proti novému servisu vyvolají konflikt; nic se automaticky nepřepíše. **Vyřešit konflikt** stáhne místní zálohu a po potvrzení načte databázi. Potřebné úpravy lze znovu zadat. Mazání a nahrazující import se projeví také na ostatních zařízeních. Export záloh zůstává dostupný.
 
-Ověření sestaveného webu pod cestou repozitáře: `node tests/hosting.cjs` (Playwright + Edge). Ověřuje prázdný start, import/export zálohy, zachování dat při obnovení stránky, relativní adresy souborů a tiskový náhled s QR platbou.
+Původní klíče místní garáže se nemění. Po přihlášení tlačítko **Převést původní garáž** stáhne původní zálohu a připojí záznamy do databáze. Rozdílné verze stejného ID převod zastaví k ručnímu porovnání. Z jiné adresy nebo počítačové verze použijte původní JSON export přes Zálohy. Tato migrace není automatický upload soukromých souborů z repozitáře.
+
+## Provoz a nasazení
+
+Schéma je v supabase/schema.sql; administrátor následně vloží do garage_state pouze UUID povoleného uživatele z Auth. supabase/checks.sql prověří přístup vlastníka, zamítnutí cizího a anonymního účtu, validaci dat a odmítnutí zastaralého zápisu, vše v transakci s rollbackem. Při zakládání dalšího projektu nastavte Site URL a přesnou Redirect URL na adresu webu, zakažte veřejnou registraci a anonymní přihlášení.
+
+Obnova hesla používá e-mail Supabase. Doručování závisí na nastavení odesílatele a limitech služby; před spoléháním na obnovu je ověřte pro svůj účet. Správce má alternativně k dispozici správu účtů v dashboardu. Heslo se nikdy neukládá do zdrojového kódu.
+
+Publikování zajišťuje .github/workflows/pages.yml při změně main. Build node scripts/build-site.cjs vytvoří nový dist pouze z allowlistu. Soukromé zálohy, js/garage-data.js a testovací snímky se nepublikují. Platební účet a publishable key jsou záměrně veřejné. Místní vývoj vyžaduje HTTP server; produkce HTTPS.
+
+Knihovna Supabase JS 2.118.0 je lokálně v js/vendor/supabase.js (MIT, přiložená licence). SHA-256: EE3BE8DE192B97CB1D73D1E95D6B82BB1F6B658C0F97C4EF757FC331996ED3D3.
+
+Kontroly: node tests/sync-model.cjs a node tests/cloud-browser.cjs. Druhý test používá skutečnou knihovnu Supabase s testovacími HTTP odpověďmi, dvě oddělená zařízení, výpadky, konflikty, opakovaný zápis, odhlášení, QR a chybu místního úložiště. Regresní testy katalogů a QR používají izolovaný místní testovací start bez autentizace; produkční aplikace takový přepínač nemá.
 
 ## Faktury za díly
 
 V záložce **Nový záznam** vyberte PDF, JPG, PNG nebo WebP v části **Načíst díly z faktury**. Aplikace přečte text PDF, u skenu nebo fotky použije české a anglické OCR. Limit je 20 MB a 15 stran PDF. Zpracování běží v prohlížeči; z CDN se stahují knihovny PDF.js 4.10.38, Tesseract.js 5.1.1 a jazyková data. Bez jejich načtení je potřeba zadat díly ručně.
 
-Zkontrolujte návrh, upravte ceny nebo názvy a zvolte **Přidat položky do záznamu**. Doplní se vlastní úkony a poznámka s názvem souboru, zapne se součet. Nakonec doplňte datum a tachometr a uložte záznam. Původní faktura se nearchivuje. Ceny v aplikaci i tiskových výstupech zachovávají haléře.
+Zkontrolujte návrh, upravte ceny nebo názvy a zvolte **Přidat položky do záznamu**. Doplní se vlastní úkony a zapne se součet. Nakonec doplňte datum a tachometr a uložte záznam. Původní faktura se nearchivuje. Ceny v aplikaci i tiskových výstupech zachovávají haléře.
 
 U tabulky Zboží / Množství / Netto za jednotku / Daň % / Netto / DPH / Brutto aplikace čte konečné Brutto za celý řádek, kontroluje Netto + DPH a připojí popis z následujícího řádku ke kódu dílu. Množství zachová v názvu; cenu za celý řádek znovu nenásobí. Vynechá data dokladu, poznámky o záruce, ceny před slevou a nulové řádky pro osobní odběr či platbu. Rozpozná i souhrn „Celkem:“.
 

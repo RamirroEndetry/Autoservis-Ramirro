@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const files = ['index.html', 'style.css', '.nojekyll',
   'js/database.js', 'js/ford-data.js', 'js/catalogue-data.js', 'js/storage.js',
+  'js/cloud.js', 'js/cloud-config.js', 'js/sync-model.js', 'js/vendor/supabase.js', 'js/vendor/supabase-LICENSE',
   'js/payment.js', 'js/pdf.js', 'js/invoice.js', 'js/app.js',
   'js/vendor/qrcode.js', 'js/vendor/qrcode-LICENSE',
   ...['audi','favicon','ford','honda','skoda','vw','yamaha'].map(x => `assets/${x}.svg`)];
