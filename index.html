@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Digitální servisní kniha pro auta a motocykly – evidence úkonů, nákladů a připomínek.">
+  <meta name="color-scheme" content="dark">
+  <title>Servisní kniha – auta a motocykly</title>
+
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-brand="audi">
+
+  <canvas id="bg-canvas" aria-hidden="true"></canvas>
+
+  <!-- ================================ HLAVIČKA ============================ -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="app-identity">
+        <span class="app-mark" aria-hidden="true"><i class="fa-solid fa-screwdriver-wrench"></i></span>
+        <div class="app-identity-text">
+          <h1>Servisní kniha</h1>
+          <p>Auta &amp; motocykly – údržba, náklady, připomínky</p>
+        </div>
+      </div>
+
+      <nav class="header-actions" aria-label="Hlavní akce">
+        <button type="button" id="garage-btn" class="btn btn-ghost">
+          <i class="fa-solid fa-warehouse" aria-hidden="true"></i>
+          <span id="garage-btn-label">Garáž</span>
+        </button>
+        <button type="button" id="add-vehicle-btn" class="btn btn-primary">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+          <span class="btn-text">Přidat stroj</span>
+        </button>
+        <button type="button" id="backup-btn" class="btn btn-icon" title="Záloha a obnova dat" aria-label="Záloha a obnova dat">
+          <i class="fa-solid fa-database" aria-hidden="true"></i>
+        </button>
+        <button type="button" id="settings-btn" class="btn btn-icon" title="Nastavení" aria-label="Nastavení">
+          <i class="fa-solid fa-sliders" aria-hidden="true"></i>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page">
+
+    <!-- ============================== PRÁZDNÝ STAV ======================== -->
+    <section id="no-vehicle-state" class="empty-hero" hidden>
+      <i class="fa-solid fa-warehouse" aria-hidden="true"></i>
+      <h2>Garáž je zatím prázdná</h2>
+      <p>
+        Přidejte první auto nebo motocykl – nebo obnovte svůj vozový park ze zálohy.
+        Data zůstávají v tomto prohlížeči. Mezi zařízeními se automaticky nesynchronizují.
+      </p>
+      <div class="empty-hero-actions">
+        <button type="button" class="btn btn-ghost" data-action="add-vehicle">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i> Přidat stroj
+        </button>
+        <button type="button" class="btn btn-ghost" data-action="open-backup">
+          <i class="fa-solid fa-file-import" aria-hidden="true"></i> Importovat soubor zálohy
+        </button>
+      </div>
+    </section>
+
+    <!-- ================================ HERO ============================== -->
+    <section id="vehicle-hero" class="hero" hidden>
+      <div class="hero-main">
+        <div class="hero-identity">
+          <div id="hero-logo" class="hero-logo"><i class="fa-solid fa-car" aria-hidden="true"></i></div>
+          <div>
+            <p class="hero-eyebrow"><span id="hero-kind">Automobil</span> <span id="hero-year-badge" class="pill">—</span></p>
+            <h2 id="hero-title">—</h2>
+            <p id="hero-engine" class="hero-engine">—</p>
+            <div class="hero-meta">
+              <span class="meta-chip" title="Registrační značka">
+                <i class="fa-solid fa-id-card" aria-hidden="true"></i> <strong id="hero-spz">—</strong>
+              </span>
+              <span class="meta-chip" title="VIN nebo číslo rámu">
+                <i class="fa-solid fa-barcode" aria-hidden="true"></i> <strong id="hero-vin">—</strong>
+              </span>
+              <span class="meta-chip" title="Kód motoru">
+                <i class="fa-solid fa-microchip" aria-hidden="true"></i> <strong id="hero-engine-code">—</strong>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-actions">
+          <button type="button" id="edit-vehicle-btn" class="btn btn-ghost btn-sm">
+            <i class="fa-solid fa-pen" aria-hidden="true"></i> Upravit stroj
+          </button>
+          <button type="button" id="print-book-btn" class="btn btn-ghost btn-sm">
+            <i class="fa-solid fa-book" aria-hidden="true"></i> Servisní knížka (PDF)
+          </button>
+        </div>
+      </div>
+
+      <div class="hero-stats">
+        <div class="stat">
+          <span class="stat-label">Tachometr</span>
+          <strong id="stat-mileage" class="stat-value">0 km</strong>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Celkem za servis</span>
+          <strong id="stat-spend" class="stat-value">0 Kč</strong>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Počet záznamů</span>
+          <strong id="stat-count" class="stat-value">0</strong>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Poslední servis</span>
+          <strong id="stat-last" class="stat-value">—</strong>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ UPOZORNĚNÍ ============================ -->
+    <div id="alert-strip" class="alert-strip" hidden></div>
+
+    <!-- ============================== ZÁLOŽKY ============================= -->
+    <div id="workspace" hidden>
+      <div class="tabs" role="tablist" aria-label="Sekce aplikace">
+        <button type="button" class="tab active" role="tab" aria-selected="true" data-tab="history">
+          <i class="fa-solid fa-timeline" aria-hidden="true"></i> Historie
+          <span id="tab-history-count" class="tab-badge">0</span>
+        </button>
+        <button type="button" class="tab" role="tab" aria-selected="false" data-tab="form">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i> <span id="tab-form-label">Nový záznam</span>
+        </button>
+        <button type="button" class="tab" role="tab" aria-selected="false" data-tab="costs">
+          <i class="fa-solid fa-chart-column" aria-hidden="true"></i> Náklady
+        </button>
+        <button type="button" class="tab" role="tab" aria-selected="false" data-tab="plan">
+          <i class="fa-solid fa-bell" aria-hidden="true"></i> Připomínky
+          <span id="tab-plan-count" class="tab-badge tab-badge-warn" hidden>0</span>
+        </button>
+      </div>
+
+      <!-- ---------------------------- HISTORIE --------------------------- -->
+      <section class="tab-panel active" id="panel-history" role="tabpanel">
+        <div class="panel">
+          <div class="panel-head">
+            <h3><i class="fa-solid fa-timeline" aria-hidden="true"></i> Servisní historie</h3>
+            <div class="panel-tools">
+              <div class="search-box">
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                <input type="search" id="history-search" placeholder="Hledat úkon, dílnu, poznámku…" aria-label="Hledat v historii">
+              </div>
+              <select id="history-filter" class="form-control form-control-sm" aria-label="Filtrovat podle kategorie">
+                <option value="">Všechny kategorie</option>
+              </select>
+            </div>
+          </div>
+          <div id="timeline" class="timeline"></div>
+        </div>
+      </section>
+
+      <!-- ------------------------- NOVÝ / ÚPRAVA ------------------------- -->
+      <section class="tab-panel" id="panel-form" role="tabpanel">
+        <form id="service-form" novalidate>
+          <input type="hidden" id="srv-id">
+
+          <div class="panel" id="invoice-panel">
+            <div class="panel-head"><h3><i class="fa-solid fa-file-invoice" aria-hidden="true"></i> Načíst díly z faktury</h3></div>
+            <p class="muted-note">Vyberte PDF nebo fotku (JPG, PNG, WebP). Položky a ceny se načtou automaticky. Před přidáním zkontrolujte zejména množství a DPH. Podporovány jsou faktury v Kč.</p>
+            <label for="invoice-file">Faktura za autodíly (max. 20 MB / 15 stran)</label>
+            <input id="invoice-file" class="form-control" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp">
+            <p class="field-hint">Zpracování probíhá v prohlížeči. Internet je potřeba pro načtení čtečky PDF a rozpoznávání textu. Originál faktury se neukládá.</p>
+            <p id="invoice-status" role="status" aria-live="polite"></p>
+            <div id="invoice-review" hidden>
+              <p id="invoice-warning" class="muted-note"></p>
+              <p class="field-hint">U každé položky: název a množství · cena za celý řádek v Kč včetně DPH.</p>
+              <div id="invoice-rows"></div>
+              <p id="invoice-total"></p>
+              <div class="panel-tools">
+                <button type="button" id="invoice-add-row" class="btn btn-ghost btn-sm">Doplnit položku</button>
+                <button type="button" id="invoice-apply" class="btn btn-primary">Přidat položky do záznamu</button>
+                <button type="button" id="invoice-discard" class="btn btn-ghost">Zahodit načtení</button>
+              </div>
+              <details><summary>Rozpoznaný text faktury</summary><pre id="invoice-text" class="invoice-text"></pre></details>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3><i class="fa-solid fa-clipboard-list" aria-hidden="true"></i> <span id="form-title">Nový servisní záznam</span></h3>
+              <button type="button" id="cancel-edit-btn" class="btn btn-ghost btn-sm" hidden>
+                <i class="fa-solid fa-xmark" aria-hidden="true"></i> Zrušit úpravu
+              </button>
+            </div>
+
+            <div class="grid-4">
+              <div class="field">
+                <label for="srv-date">Datum servisu <span class="req">*</span></label>
+                <input type="date" id="srv-date" class="form-control" required>
+              </div>
+              <div class="field">
+                <label for="srv-mileage">Stav tachometru (km) <span class="req">*</span></label>
+                <input type="number" id="srv-mileage" class="form-control" min="0" step="1" inputmode="numeric" placeholder="24500" required>
+                <small id="mileage-hint" class="field-hint"></small>
+              </div>
+              <div class="field">
+                <label for="srv-workshop">Kdo servis provedl</label>
+                <input type="text" id="srv-workshop" class="form-control" list="workshop-list" placeholder="Svépomocně v garáži">
+                <datalist id="workshop-list"></datalist>
+              </div>
+              <div class="field">
+                <label for="srv-price">
+                  Celková cena (Kč)
+                  <span class="auto-sum-toggle">
+                    <input type="checkbox" id="auto-sum" checked>
+                    <label for="auto-sum">sčítat automaticky</label>
+                  </span>
+                </label>
+                <input type="number" id="srv-price" class="form-control" min="0" step="0.01" inputmode="decimal" placeholder="0">
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><h3>QR platba na protokolu</h3></div>
+            <label><input type="checkbox" id="srv-payment-enabled"> Přidat QR platbu k úhradě celkové ceny servisu</label>
+            <p class="field-hint">Účet příjemce: <strong>824880004/5500</strong> · měna CZK. Zapněte jen u nezaplaceného servisu; částka se převezme z celkové ceny výše.</p>
+            <div class="field">
+              <label for="srv-payment-vs">Variabilní symbol (nepovinný)</label>
+              <input type="text" id="srv-payment-vs" class="form-control" inputmode="numeric" maxlength="10" placeholder="Např. číslo vaší faktury, pouze číslice">
+              <small class="field-hint">Bez vyplnění se platba vytvoří bez variabilního symbolu. Volba i symbol se uloží se záznamem.</small>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3><i class="fa-solid fa-list-check" aria-hidden="true"></i> Provedené úkony</h3>
+              <div class="panel-tools">
+                <span id="selected-count" class="pill">0 vybráno</span>
+                <button type="button" id="expand-all-btn" class="btn btn-ghost btn-sm">Rozbalit vše</button>
+                <button type="button" id="clear-items-btn" class="btn btn-ghost btn-sm">Odznačit vše</button>
+              </div>
+            </div>
+
+            <div class="search-box search-box-wide">
+              <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+              <input type="search" id="item-search" placeholder="Rychlé hledání úkonu (např. svíčky, řemen, destičky…)" aria-label="Hledat servisní úkon">
+            </div>
+
+            <div id="accordion" class="accordion"></div>
+            <p id="accordion-empty" class="muted-note" hidden>Žádný úkon neodpovídá hledání.</p>
+          </div>
+
+          <!-- Detail oleje – zobrazí se jen při zaškrtnuté výměně oleje -->
+          <div class="panel panel-accent" id="oil-panel" hidden>
+            <div class="panel-head">
+              <h3><i class="fa-solid fa-oil-can" aria-hidden="true"></i> Upřesnění výměny oleje</h3>
+              <span id="oil-recommend" class="pill pill-soft"></span>
+            </div>
+            <div class="grid-3">
+              <div class="field">
+                <label for="oil-viscosity">Viskozita a specifikace</label>
+                <select id="oil-viscosity" class="form-control"></select>
+              </div>
+              <div class="field">
+                <label for="oil-liters">Množství (litry)</label>
+                <input type="text" id="oil-liters" class="form-control" placeholder="např. 4,3 L">
+              </div>
+              <div class="field">
+                <label for="oil-brand">Značka oleje / filtru</label>
+                <input type="text" id="oil-brand" class="form-control" placeholder="např. Motul 7100, filtr HiFlo HF204">
+              </div>
+            </div>
+          </div>
+
+          <!-- Detail kabinového filtru -->
+          <div class="panel panel-accent" id="cabin-panel" hidden>
+            <div class="panel-head">
+              <h3><i class="fa-solid fa-wind" aria-hidden="true"></i> Kabinový filtr</h3>
+            </div>
+            <div class="grid-2">
+              <div class="field">
+                <label for="cabin-type">Typ filtru</label>
+                <select id="cabin-type" class="form-control">
+                  <option value="S aktivním uhlím">S aktivním uhlím</option>
+                  <option value="Standardní papírový">Standardní papírový</option>
+                  <option value="Antialergenní / biofunkční">Antialergenní / biofunkční</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="cabin-brand">Značka / číslo dílu</label>
+                <input type="text" id="cabin-brand" class="form-control" placeholder="např. MANN CUK 2939">
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3><i class="fa-solid fa-wrench" aria-hidden="true"></i> Vlastní úkony</h3>
+              <span class="muted-note">Cokoli, co není v seznamu výše</span>
+            </div>
+            <div class="custom-item-row">
+              <div class="field">
+                <label for="custom-name">Popis práce</label>
+                <input type="text" id="custom-name" class="form-control" placeholder="např. výměna ložiska levého předního kola">
+              </div>
+              <div class="field field-narrow">
+                <label for="custom-price">Cena (Kč)</label>
+                <input type="number" id="custom-price" class="form-control" min="0" step="0.01" inputmode="decimal" placeholder="0">
+              </div>
+              <button type="button" id="add-custom-btn" class="btn btn-ghost">
+                <i class="fa-solid fa-plus" aria-hidden="true"></i> Přidat
+              </button>
+            </div>
+            <div id="custom-list" class="chip-list"></div>
+          </div>
+
+          <div class="panel">
+            <div class="field">
+              <label for="srv-notes">Poznámka</label>
+              <textarea id="srv-notes" class="form-control" rows="3" placeholder="Značky dílů, čísla dílů, postřehy z opravy, co je potřeba pohlídat příště…"></textarea>
+            </div>
+            <div class="form-submit">
+              <span id="form-summary" class="muted-note"></span>
+              <button type="submit" class="btn btn-primary btn-lg">
+                <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> <span id="submit-label">Uložit záznam</span>
+              </button>
+            </div>
+          </div>
+        </form>
+      </section>
+
+      <!-- ----------------------------- NÁKLADY --------------------------- -->
+      <section class="tab-panel" id="panel-costs" role="tabpanel">
+        <div class="panel">
+          <div class="panel-head">
+            <h3><i class="fa-solid fa-coins" aria-hidden="true"></i> Přehled nákladů</h3>
+          </div>
+          <div id="cost-summary" class="cost-summary"></div>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head"><h3><i class="fa-solid fa-chart-column" aria-hidden="true"></i> Náklady po letech</h3></div>
+            <div id="cost-by-year" class="bar-chart"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h3><i class="fa-solid fa-layer-group" aria-hidden="true"></i> Náklady podle kategorie</h3></div>
+            <div id="cost-by-category" class="bar-chart"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------------------------- PŘIPOMÍNKY ------------------------- -->
+      <section class="tab-panel" id="panel-plan" role="tabpanel">
+        <div class="panel">
+          <div class="panel-head">
+            <h3><i class="fa-solid fa-file-shield" aria-hidden="true"></i> Doklady a lhůty</h3>
+            <button type="button" class="btn btn-ghost btn-sm" data-action="edit-vehicle">
+              <i class="fa-solid fa-pen" aria-hidden="true"></i> Upravit data
+            </button>
+          </div>
+          <div id="documents-list" class="doc-list"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3><i class="fa-solid fa-calendar-check" aria-hidden="true"></i> Doporučené servisní intervaly</h3>
+            <span class="muted-note">Orientační hodnoty, řiďte se manuálem výrobce</span>
+          </div>
+          <div id="plan-list" class="plan-list"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ========================= MODÁL: STROJ ============================== -->
+  <div class="modal-overlay" id="vehicle-modal" role="dialog" aria-modal="true" aria-labelledby="vehicle-modal-title" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <h3 id="vehicle-modal-title">Přidat stroj</h3>
+        <button type="button" class="modal-close" data-close="vehicle-modal" aria-label="Zavřít">&times;</button>
+      </div>
+
+      <form id="vehicle-form" novalidate>
+        <input type="hidden" id="veh-id">
+
+        <fieldset class="field">
+          <legend>Značka <span class="req">*</span></legend>
+          <div class="brand-grid" id="brand-grid" role="radiogroup" aria-label="Značka"></div>
+        </fieldset>
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="veh-model">Model <span class="req">*</span></label>
+            <select id="veh-model" class="form-control" required></select>
+          </div>
+          <div class="field">
+            <label for="veh-year">Rok výroby <span class="req">*</span></label>
+            <select id="veh-year" class="form-control" required></select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="veh-engine">Motorizace <span class="req">*</span></label>
+          <select id="veh-engine" class="form-control" required></select>
+          <div id="veh-engine-custom-field" hidden>
+            <label for="veh-engine-custom">Vlastní motorizace</label>
+            <input id="veh-engine-custom" class="form-control" type="text" placeholder="např. 1.6 TDCi 80 kW">
+          </div>
+          <small id="engine-hint" class="field-hint"></small>
+          <small id="engine-source" class="field-hint" hidden></small>
+        </div>
+
+        <div class="grid-3">
+          <div class="field">
+            <label for="veh-engine-code">Kód motoru</label>
+            <input type="text" id="veh-engine-code" class="form-control" placeholder="např. BKD, G389E">
+          </div>
+          <div class="field">
+            <label for="veh-mileage">Nájezd (km)</label>
+            <input type="number" id="veh-mileage" class="form-control" min="0" step="1" inputmode="numeric" placeholder="24500">
+          </div>
+          <div class="field">
+            <label for="veh-nickname">Vlastní název</label>
+            <input type="text" id="veh-nickname" class="form-control" placeholder="např. Modrá Octavia">
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="veh-spz">SPZ / RZ</label>
+            <input type="text" id="veh-spz" class="form-control" placeholder="2A1 4455" maxlength="12">
+          </div>
+          <div class="field">
+            <label for="veh-vin">VIN / číslo rámu</label>
+            <input type="text" id="veh-vin" class="form-control" placeholder="TMBGS21Z882049102" maxlength="17">
+            <small id="vin-hint" class="field-hint"></small>
+          </div>
+        </div>
+
+        <details class="details-block">
+          <summary>Doklady a lhůty (nepovinné)</summary>
+          <div class="grid-4" id="documents-fields"></div>
+        </details>
+
+        <div class="modal-foot">
+          <button type="button" class="btn btn-ghost" data-close="vehicle-modal">Zrušit</button>
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Uložit stroj</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================= MODÁL: GARÁŽ ============================== -->
+  <div class="modal-overlay" id="garage-modal" role="dialog" aria-modal="true" aria-labelledby="garage-modal-title" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <h3 id="garage-modal-title"><i class="fa-solid fa-warehouse" aria-hidden="true"></i> Moje garáž</h3>
+        <button type="button" class="modal-close" data-close="garage-modal" aria-label="Zavřít">&times;</button>
+      </div>
+      <div id="garage-list" class="garage-list"></div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-primary" data-action="add-vehicle">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i> Přidat další stroj
+        </button>
+        <button type="button" class="btn btn-ghost" data-close="garage-modal">Zavřít</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================= MODÁL: ZÁLOHA ============================= -->
+  <div class="modal-overlay" id="backup-modal" role="dialog" aria-modal="true" aria-labelledby="backup-modal-title" hidden>
+    <div class="modal">
+      <div class="modal-head">
+        <h3 id="backup-modal-title"><i class="fa-solid fa-database" aria-hidden="true"></i> Záloha a obnova</h3>
+        <button type="button" class="modal-close" data-close="backup-modal" aria-label="Zavřít">&times;</button>
+      </div>
+
+      <p class="muted-note">
+        Data jsou uložena pouze v tomto prohlížeči, a to zvlášť pro každou adresu, ze které aplikaci
+        otevřete (<code>file://</code> a <code>http://localhost</code> jsou dvě oddělené garáže).
+        Smazání historie prohlížeče data nenávratně odstraní – proto si zálohu občas stáhněte.
+      </p>
+
+      <div id="backup-stats" class="backup-stats"></div>
+
+      <div class="backup-actions">
+        <div class="backup-card">
+          <h4><i class="fa-solid fa-download" aria-hidden="true"></i> Export</h4>
+          <p>Stáhne soubor JSON se všemi stroji i servisními záznamy.</p>
+          <button type="button" id="export-btn" class="btn btn-success btn-sm">Stáhnout zálohu</button>
+        </div>
+        <div class="backup-card">
+          <h4><i class="fa-solid fa-upload" aria-hidden="true"></i> Import</h4>
+          <p>Načte data ze souboru zálohy.</p>
+          <input type="file" id="import-input" accept=".json,application/json" hidden>
+          <div class="backup-btn-row">
+            <button type="button" id="import-replace-btn" class="btn btn-primary btn-sm">Nahradit vše</button>
+            <button type="button" id="import-merge-btn" class="btn btn-ghost btn-sm">Připojit chybějící</button>
+          </div>
+        </div>
+
+        <p class="muted-note">Zálohu si pravidelně stáhněte. GitHub neukládá vaši garáž; vymazání dat prohlížeče odstraní místní záznamy. Při přechodu z počítačové verze zde importujte její exportovanou zálohu.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= MODÁL: NASTAVENÍ ============================ -->
+  <div class="modal-overlay" id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title" hidden>
+    <div class="modal modal-narrow">
+      <div class="modal-head">
+        <h3 id="settings-modal-title"><i class="fa-solid fa-sliders" aria-hidden="true"></i> Nastavení</h3>
+        <button type="button" class="modal-close" data-close="settings-modal" aria-label="Zavřít">&times;</button>
+      </div>
+
+      <label class="switch-row">
+        <input type="checkbox" id="set-animations">
+        <span>
+          <strong>Hvězdné pozadí</strong>
+          <small>Vypněte pro úsporu baterie a klidnější zobrazení. Máte-li v systému
+            omezené animace, pozadí se vykreslí staticky.</small>
+        </span>
+      </label>
+
+      <label class="switch-row">
+        <input type="checkbox" id="set-autosum">
+        <span>
+          <strong>Automatický součet cen</strong>
+          <small>Celková cena se dopočítá z cen jednotlivých úkonů.</small>
+        </span>
+      </label>
+
+      <div class="danger-zone">
+        <h4>Smazat všechna data</h4>
+        <p>Nenávratně odstraní všechny stroje i servisní záznamy z tohoto prohlížeče.</p>
+        <button type="button" id="wipe-btn" class="btn btn-danger btn-sm">
+          <i class="fa-solid fa-trash-can" aria-hidden="true"></i> Smazat vše
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= MODÁL: POTVRZENÍ ============================ -->
+  <div class="modal-overlay" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" hidden>
+    <div class="modal modal-narrow">
+      <div class="modal-head">
+        <h3 id="confirm-title">Potvrzení</h3>
+        <button type="button" class="modal-close" data-close="confirm-modal" aria-label="Zavřít">&times;</button>
+      </div>
+      <p id="confirm-text" class="confirm-text"></p>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close="confirm-modal">Zrušit</button>
+        <button type="button" id="confirm-ok" class="btn btn-danger">Potvrdit</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-area" class="toast-area" aria-live="polite"></div>
+
+  <script src="js/database.js"></script>
+  <script src="js/ford-data.js"></script>
+  <script src="js/catalogue-data.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/vendor/qrcode.js"></script>
+  <script src="js/payment.js"></script>
+  <script src="js/pdf.js"></script>
+  <script src="js/invoice.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
+

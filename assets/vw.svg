@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Volkswagen">
+  <circle cx="100" cy="100" r="95" fill="#001e50"/>
+  <circle cx="100" cy="100" r="87" fill="none" stroke="#ffffff" stroke-width="9"/>
+  <g fill="none" stroke="#ffffff" stroke-width="13" stroke-linejoin="miter" stroke-miterlimit="4">
+    <path d="M76 44 L100 96 L124 44"/>
+    <path d="M40 86 L67 156 L100 100 L133 156 L160 86"/>
+  </g>
+</svg>

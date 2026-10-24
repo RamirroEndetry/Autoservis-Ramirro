@@ -1,0 +1,16 @@
+# Private local data must never enter the public repository.
+*.json
+js/garage-data.js
+.claude/
+.codex/
+.agents/
+.env*
+private/
+node_modules/
+dist/
+tests/*.png
+tests/*.pdf
+tests/invoice-supplier.txt
+tests/invoice*.cjs
+*.zip
+*.log
