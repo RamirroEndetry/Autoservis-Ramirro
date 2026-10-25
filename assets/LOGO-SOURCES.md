@@ -11,4 +11,4 @@ Staženo 25. 10. 2026. Loga slouží k identifikaci značek vozidel; ochranné z
 | Honda | [Oficiální motocyklové logo Honda UK](https://www.honda.co.uk/content/dam/central/motorcycles/generic/Version_Secondary_Colour_White.svg) |
 | Yamaha | [Oficiální logo Yamaha Motor](https://global.yamaha-motor.com/shared/img/rwd_identity.png) |
 
-Grafické soubory nebyly překreslovány. CSS v tmavém rozhraní zobrazuje černé monochromatické emblémy Audi a VW bíle; Yamaha má bílý podklad kvůli černému sloganu. Poměry stran zůstávají zachované. Honda používá motocyklové křídlo, protože katalog obsahuje motocykly této značky.
+Grafické soubory nebyly překreslovány. U Hondy byl zmenšen prázdný okraj SVG pomocí viewBoxu, samotné křivky zůstaly původní. CSS v tmavém rozhraní zobrazuje černé monochromatické emblémy Audi a VW bíle; Yamaha má bílý podklad kvůli černému sloganu. Poměry stran samotných znaků zůstávají zachované. Honda používá motocyklové křídlo, protože katalog obsahuje motocykly této značky.
