@@ -810,7 +810,7 @@ const VehicleCatalog = {
   engine(vehicle) {
     const model = this.model(vehicle.brand, vehicle.modelKey);
     if (!model) return null;
-    const matched = model.engines.find(e => e.name === vehicle.engineName);
+    const matched = [...model.engines, ...(model.catalogueEngines || [])].find(e => e.name === vehicle.engineName);
     return matched || null;
   },
 

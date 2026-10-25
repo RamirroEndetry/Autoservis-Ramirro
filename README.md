@@ -1,5 +1,9 @@
 # Servisní kniha
 
+## Katalog motorů
+
+Kontrola z 25. 10. 2026 pokrývá všechny současné modelové položky. Konkrétní generace jsou porovnané se 121 stránkami PEMA; staré sloučené seznamy nahradily jednotlivé výkony a kódy motorů. Přesné nabídky výrobců zůstávají oddělené od katalogových alternativ. Podrobnosti, zdroje a omezení jsou v [ENGINE-CATALOGUE-AUDIT.md](ENGINE-CATALOGUE-AUDIT.md). Motorové kódy se nabízejí k výběru, nepřiřazují se automaticky vozidlu. Databáze funguje lokálně i na GitHub Pages.
+
 ## Soukromá webová aplikace
 
 Adresa: https://ramirroendetry.github.io/Autoservis-Ramirro/

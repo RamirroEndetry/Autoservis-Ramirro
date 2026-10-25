@@ -2,7 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const files = ['index.html', 'style.css', '.nojekyll',
-  'js/database.js', 'js/ford-data.js', 'js/catalogue-data.js', 'js/storage.js',
+  'js/database.js', 'js/ford-data.js', 'js/catalogue-data.js', 'js/engine-catalogue-data.js', 'js/engine-catalogue.js', 'js/storage.js',
   'js/cloud.js', 'js/cloud-config.js', 'js/sync-model.js', 'js/vendor/supabase.js', 'js/vendor/supabase-LICENSE',
   'js/payment.js', 'js/clients.js', 'js/pdf.js', 'js/invoice.js', 'js/app.js',
   'js/vendor/qrcode.js', 'js/vendor/qrcode-LICENSE',

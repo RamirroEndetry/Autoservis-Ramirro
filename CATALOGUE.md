@@ -1,5 +1,7 @@
 # Evropský katalog ostatních značek
 
+**Navazující kontrola 25. 10. 2026:** viz [ENGINE-CATALOGUE-AUDIT.md](ENGINE-CATALOGUE-AUDIT.md). Původní orientační seznamy nyní při načtení nahrazuje `engine-catalogue.js` a nabídky výrobců doplňuje oddělenými variantami PEMA. Níže je dokumentace původní vrstvy z 23. 10., nikoli úplný popis dnešní nabídky.
+
 Kontrola a doplnění: 23. 10. 2026. Ford má samostatnou dokumentaci v `FORD-CATALOGUE.md`.
 
 Do `js/catalogue-data.js` přibylo 36 nabídek s 229 samostatnými volbami motoru a výkonu. Údaje jsou přepsané z evropských podkladů výrobců; odkazy jsou u každého modelu ve formuláři a v objektu `CATALOGUE_SOURCES` ve zdrojovém souboru. Nejde o úplnou homologovanou databázi všech českých verzí, roků, převodovek, pohonů nebo kódů motoru.

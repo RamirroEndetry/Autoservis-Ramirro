@@ -463,7 +463,8 @@
         <div class="grid-3">
           <div class="field">
             <label for="veh-engine-code">Kód motoru</label>
-            <input type="text" id="veh-engine-code" class="form-control" placeholder="např. BKD, G389E">
+            <input type="text" id="veh-engine-code" class="form-control" list="engine-code-options" placeholder="např. BKD, G389E">
+            <datalist id="engine-code-options"></datalist>
           </div>
           <div class="field">
             <label for="veh-mileage">Nájezd (km)</label>
@@ -631,6 +632,8 @@
   <script src="js/database.js"></script>
   <script src="js/ford-data.js"></script>
   <script src="js/catalogue-data.js"></script>
+  <script src="js/engine-catalogue-data.js"></script>
+  <script src="js/engine-catalogue.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/vendor/qrcode.js"></script>
   <script src="js/payment.js"></script>

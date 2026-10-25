@@ -1571,9 +1571,9 @@ class App {
 
     this.fillModelSelect(isEdit ? vehicle.modelKey : null);
     this.fillYearSelect(isEdit ? vehicle.year : null);
+    document.getElementById("veh-engine-code").value = isEdit ? (vehicle.engineCode || "") : "";
     this.fillEngineSelect(isEdit ? vehicle.engineName : null);
 
-    document.getElementById("veh-engine-code").value = isEdit ? (vehicle.engineCode || "") : "";
     document.getElementById("veh-mileage").value = isEdit ? (vehicle.mileage || "") : "";
     document.getElementById("veh-nickname").value = isEdit ? (vehicle.nickname || "") : "";
     document.getElementById("veh-spz").value = isEdit ? (vehicle.spz || "") : "";
@@ -1656,8 +1656,10 @@ class App {
     const sourceEl = document.getElementById("engine-source");
     sourceEl.hidden = true;
     sourceEl.replaceChildren();
+    const engineOptions = engines => engines.map(e => '<option value="' + Utils.esc(e.name) + '">' + Utils.esc(e.name) + '</option>').join('');
     select.innerHTML = '<option value="">Neuvedeno – vyberte motorizaci</option>' +
-        (model ? model.engines : []).map(e => '<option value="' + Utils.esc(e.name) + '">' + Utils.esc(e.name) + '</option>').join('') +
+        engineOptions(model ? model.engines : []) +
+        (model?.catalogueEngines?.length ? '<optgroup label="Katalog PEMA – ověřte rok, trh a kód vozidla">' + engineOptions(model.catalogueEngines) + '</optgroup>' : '') +
         '<option value="__custom__">Jiná motorizace – zadat ručně</option>';
       if (selectedName) {
         const exists = Array.from(select.options).some(o => o.value === selectedName);
@@ -1667,7 +1669,9 @@ class App {
       sourceEl.hidden = false;
       const source = model && model.source && (CATALOGUE_SOURCES[model.source] || FORD_SOURCES[model.source]);
       if (source) {
-        sourceEl.append(document.createTextNode(model.edition
+        sourceEl.append(document.createTextNode(model.catalogueStatus === 'parts-catalogue'
+          ? 'Katalog PEMA pro tuto modelovou řadu. Zahrnuje různé trhy a karoserie; konkrétní motor ověřte podle dokladů vozu. '
+          : model.edition
           ? 'Doložená nabídka: ' + model.edition + '. U jiného ročníku ověřte motorizaci podle technického průkazu. České verze se mohou lišit. '
           : 'Evropská nabídka pro uvedenou generaci; jednotlivé motory nebyly dostupné ve všech ročnících a českých verzích. '));
         const link = document.createElement('a');
@@ -1684,10 +1688,37 @@ class App {
     const model = VehicleCatalog.model(this.modalBrand, modelKey);
     const name = document.getElementById("veh-engine").value;
     document.getElementById("veh-engine-custom-field").hidden = name !== "__custom__";
-    const engine = model ? model.engines.find(e => e.name === name) : null;
-    document.getElementById("engine-hint").textContent = engine && engine.oilSpec && engine.oilCapacity
+    const engine = model ? EngineCatalogue.engines(model).find(e => e.name === name) : null;
+    // The manufacturer edition must not be shown as the source of a PEMA alternative.
+    document.getElementById('engine-source').hidden = Boolean(engine?.catalogueOnly);
+    const codeOptions = document.getElementById('engine-code-options');
+    codeOptions.replaceChildren(...(engine?.codes || []).map(code => new Option(code, code)));
+    const hint = document.getElementById("engine-hint");
+    hint.textContent = engine && engine.oilSpec && engine.oilCapacity
       ? "Doporučený olej: " + engine.oilSpec + " · náplň " + engine.oilCapacity
       : "Motor a výkon vyberte podle technického průkazu. Olej a náplň ověřte v příručce konkrétního vozidla.";
+    if (engine?.catalogueOnly) {
+      const periods = [...new Set(engine.applications.map(a => a.from + '–' + (a.to || 'dosud')))];
+      hint.textContent = 'PEMA – katalog různých trhů a karoserií. Období: ' + periods.join(', ') + '. ' +
+        (engine.codes.length ? 'Možné kódy: ' + engine.codes.join(', ') + '. Konkrétní kód zvolte podle vozidla. ' : 'Kód motoru zdroj neuvádí. ') +
+        (engine.roundedPower ? 'Výkon v katalogu je zaokrouhlený; přesný údaj převezměte z technického průkazu. ' : '') +
+        'Olej a náplň ověřte v příručce vozidla. ';
+      const enteredCode = document.getElementById('veh-engine-code').value.trim().toUpperCase();
+      if (enteredCode && engine.codes.length && !engine.codes.includes(enteredCode)) {
+        hint.prepend(document.createTextNode('Zadaný kód ' + enteredCode + ' není mezi kódy vybrané motorizace. Zkontrolujte jej podle vozidla. '));
+      }
+      const selectedYear = Number(document.getElementById('veh-year').value);
+      if (selectedYear && !engine.applications.some(a => selectedYear >= Number(a.from.slice(-4)) && (!a.to || selectedYear <= Number(a.to.slice(-4))))) {
+        hint.prepend(document.createTextNode('Zvolený rok je mimo uvedené katalogové období. '));
+      }
+      const sources = [...new Set(engine.applications.map(a => a.source))];
+      for (const id of sources) {
+        const source = ENGINE_CATALOGUE_SOURCES[id];
+        const link = document.createElement('a');
+        link.href = source[1]; link.target = '_blank'; link.rel = 'noopener noreferrer';
+        link.textContent = source[0]; hint.append(link, document.createTextNode(' '));
+      }
+    }
   }
 
   static renderDocumentFields(vehicle, keepValues) {
@@ -1978,6 +2009,8 @@ class App {
       this.renderDocumentFields(null, true);
     });
     document.getElementById("veh-engine").addEventListener("change", () => this.updateEngineHint());
+    document.getElementById("veh-engine-code").addEventListener("input", () => this.updateEngineHint());
+    document.getElementById("veh-year").addEventListener("change", () => this.updateEngineHint());
     document.getElementById("veh-client").addEventListener("change", e => {
       if (e.target.value) document.getElementById("veh-ownership").value = "client";
     });
