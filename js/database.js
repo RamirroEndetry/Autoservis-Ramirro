@@ -44,7 +44,7 @@ const VEHICLE_DB = {
   skoda: {
     type: "car",
     name: "Škoda",
-    logo: "assets/skoda.svg",
+    logo: "assets/skoda.png",
     color: "#4ba82e",
     models: {
       octavia_1: {
@@ -378,7 +378,7 @@ const VEHICLE_DB = {
   yamaha: {
     type: "moto",
     name: "Yamaha",
-    logo: "assets/yamaha.svg",
+    logo: "assets/yamaha.png",
     color: "#e4002b",
     models: {
       xmax_250_2007: {

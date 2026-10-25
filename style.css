@@ -1003,6 +1003,11 @@ fieldset { border: none; }
 .brand-card:hover { border-color: var(--border-strong); transform: translateY(-2px); }
 .brand-card.selected { border-color: var(--accent); background: var(--accent-soft); }
 .brand-card img { height: 30px; width: auto; max-width: 74px; object-fit: contain; }
+/* Original monochrome artwork in white for the dark application surfaces. */
+:is(.hero-logo, .garage-logo, .brand-card) img[src$="/audi.svg"],
+:is(.hero-logo, .garage-logo, .brand-card) img[src$="/vw.svg"] { filter: invert(1); }
+/* Yamaha's official lockup includes a black tagline; preserve its colors on white. */
+:is(.hero-logo, .garage-logo, .brand-card) img[src$="/yamaha.png"] { background: #fff; padding: 3px; border-radius: 3px; }
 .brand-card span { font-weight: 700; font-size: 13px; }
 .brand-card small { font-size: 10.5px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.4px; }
 

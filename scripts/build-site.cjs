@@ -6,7 +6,8 @@ const files = ['index.html', 'style.css', '.nojekyll',
   'js/cloud.js', 'js/cloud-config.js', 'js/sync-model.js', 'js/vendor/supabase.js', 'js/vendor/supabase-LICENSE',
   'js/payment.js', 'js/clients.js', 'js/pdf.js', 'js/invoice.js', 'js/app.js',
   'js/vendor/qrcode.js', 'js/vendor/qrcode-LICENSE',
-  ...['audi','favicon','ford','honda','skoda','vw','yamaha'].map(x => `assets/${x}.svg`)];
+  ...['audi','favicon','ford','honda','vw'].map(x => `assets/${x}.svg`),
+  'assets/skoda.png', 'assets/yamaha.png'];
 const root = path.resolve(__dirname, '..');
 const target = path.join(root, 'dist');
 if (fs.existsSync(target)) throw new Error('dist already exists. Use a fresh build directory.');
