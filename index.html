@@ -428,7 +428,10 @@
 
       <form id="vehicle-form" novalidate>
         <input type="hidden" id="veh-id">
-        <div class="field"><label for="veh-client">Klient</label><select id="veh-client" class="form-control"><option value="">Bez přiřazeného klienta</option></select><small class="field-hint">Novou kartu založíte přes tlačítko Klienti a úhrady.</small></div>
+        <div class="grid-2">
+          <div class="field"><label for="veh-ownership">Vozidlo patří</label><select id="veh-ownership" class="form-control"><option value="personal">Mně</option><option value="client">Klientovi</option></select></div>
+          <div class="field"><label for="veh-client">Klient</label><select id="veh-client" class="form-control"><option value="">Bez přiřazeného klienta</option></select><small class="field-hint">Novou kartu založíte přes tlačítko Klienti a úhrady.</small></div>
+        </div>
 
         <fieldset class="field">
           <legend>Značka <span class="req">*</span></legend>
@@ -505,6 +508,7 @@
         <button type="button" class="modal-close" data-close="garage-modal" aria-label="Zavřít">&times;</button>
       </div>
       <div class="field"><label for="garage-search">Hledat vozidlo nebo klienta</label><input type="search" id="garage-search" class="form-control" placeholder="Model, klient, SPZ nebo VIN"></div>
+      <div class="field"><label for="garage-type-filter">Zobrazit</label><select id="garage-type-filter" class="form-control"><option value="all">Vlastní i klientská</option><option value="personal">Moje vozidla</option><option value="client">Vozidla klientů</option></select></div>
       <div id="garage-list" class="garage-list"></div>
       <div class="modal-foot">
         <button type="button" class="btn btn-primary" data-action="add-vehicle">

@@ -14,6 +14,16 @@ const STORAGE_KEYS = {
 
 const SCHEMA_VERSION = 3;
 
+const VehicleOwnership = {
+  get(vehicle) {
+    if (vehicle?.ownership === "personal" || vehicle?.ownership === "client") return vehicle.ownership;
+    return vehicle?.clientId ? "client" : "personal";
+  },
+  label(vehicle) {
+    return this.get(vehicle) === "client" ? "Klientské vozidlo" : "Vlastní vozidlo";
+  }
+};
+
 class VehicleStorage {
   static backend = localStorage;
   /* ------------------------------------------------------------------ */

@@ -28,6 +28,10 @@ Kontroly: node tests/sync-model.cjs a node tests/cloud-browser.cjs. Druhý test 
 
 Tlačítko **Klienti a úhrady** otevře karty klientů (jméno/firma, telefon, e-mail a interní poznámka), jejich vozidla a přehled známých neuhrazených částek. Klienta založte a v **Upravit stroj → Klient** jej přiřaďte k jednomu nebo více vozidlům. Hledání v kartách i garáži pracuje se jménem, SPZ a VIN; karty navíc s kontakty a poznámkou. Kontakty se nikam automaticky neodesílají a interní poznámky klienta nejsou na protokolu.
 
+U každého vozidla lze zvolit **Vlastní** nebo **Klientské** a v garáži podle toho filtrovat. U starších dat se typ odvodí z přiřazení ke kartě klienta; lze jej kdykoli upravit.
+
+Blížící se STK a další doklady s vyplněným datem se zobrazí v horním upozornění 30 dní před termínem, a to napříč všemi vozidly. Kliknutím se otevře příslušné vozidlo a záložka Připomínky. Upozornění se zobrazí po otevření aplikace a přihlášení; při zavřené aplikaci se neposílá push ani e-mail.
+
 U servisu zvolte **Neuvedeno / Nezaplaceno / Částečně zaplaceno / Zaplaceno**. Částečná úhrada eviduje souhrnnou již přijatou částku v Kč; nejde o bankovní napojení ani historii jednotlivých plateb. Stav a doplatek jsou vidět v historii i na protokolu. Starší záznamy zůstávají bez uvedeného stavu a nejsou započítané jako dluh. Při zvýšení ceny již zaplaceného servisu se zachová původní uhrazená částka; snížení ceny pod úhradu vyžaduje ruční vyřešení přeplatku.
 
 Klienti jsou součástí settings.clients v existujícím zabezpečeném payloadu a zálohách. Vazba vozidla je clientId, úhrada servisu settlement. Nevyžaduje se změna databázové struktury. Synchronizace slučuje různé klienty podle ID, změnu stejného klienta chrání konfliktem. Import Připojit chybějící zachová současné karty se stejným ID.

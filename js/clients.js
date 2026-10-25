@@ -25,7 +25,10 @@ const ClientBook = {
   },
   render() {
     const hero=document.getElementById('hero-client');
-    if(hero) hero.textContent=this.name(VehicleStorage.getActiveVehicle());
+    if(hero) {
+      const vehicle=VehicleStorage.getActiveVehicle();
+      hero.textContent=VehicleOwnership.get(vehicle)==='client'?'Klientské vozidlo · '+this.name(vehicle):'Vlastní vozidlo';
+    }
     const query=Utils.norm(document.getElementById('clients-search').value);
     const vehicles=VehicleStorage.getVehicles();
     document.getElementById('clients-list').innerHTML=this.all().filter(c=>{

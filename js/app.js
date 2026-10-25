@@ -835,9 +835,32 @@ class App {
     return null;
   }
 
+  static buildFleetDocumentReminders() {
+    return VehicleStorage.getVehicles().flatMap(vehicle =>
+      VehicleCatalog.documentsFor(VehicleCatalog.kindOf(vehicle)).flatMap(doc => {
+        const value = vehicle[doc.key];
+        if (!value) return [];
+        const days = Utils.daysUntil(value);
+        if (days === null || days > 30) return [];
+        return [{
+          type: "document",
+          vehicleId: vehicle.id,
+          icon: doc.icon,
+          label: this.vehicleName(vehicle) + " · " + doc.label.replace(" platná do", "").replace(" platné do", "").replace(" do", ""),
+          detail: Utils.fmtDate(value) + " (" + Utils.relative(days) + ")",
+          status: days < 0 ? "overdue" : "soon",
+          sort: days
+        }];
+      })
+    );
+  }
+
   static renderAlerts() {
     const strip = document.getElementById("alert-strip");
-    const urgent = this.buildReminders().filter(r => r.status === "overdue" || r.status === "soon");
+    const urgent = [
+      ...this.buildReminders().filter(r => r.type === "service" && (r.status === "overdue" || r.status === "soon")),
+      ...this.buildFleetDocumentReminders()
+    ].sort((a, b) => a.sort - b.sort);
 
     document.getElementById("tab-plan-count").hidden = urgent.length === 0;
     document.getElementById("tab-plan-count").textContent = String(urgent.length);
@@ -850,7 +873,7 @@ class App {
 
     strip.hidden = false;
     strip.innerHTML = urgent.slice(0, 4).map(r =>
-      '<button type="button" class="alert alert-' + r.status + '" data-goto-plan>' +
+      '<button type="button" class="alert alert-' + r.status + '" data-goto-plan data-reminder-vehicle="' + Utils.esc(r.vehicleId || this.vehicle.id) + '">' +
         '<i class="fa-solid ' + r.icon + '" aria-hidden="true"></i>' +
         '<span><strong>' + Utils.esc(r.label) + '</strong>' + Utils.esc(r.detail) + '</span>' +
       "</button>"
@@ -859,7 +882,16 @@ class App {
       : "");
 
     strip.querySelectorAll("[data-goto-plan]").forEach(btn => {
-      btn.addEventListener("click", () => this.switchTab("plan"));
+      btn.addEventListener("click", () => {
+        const vehicleId = btn.dataset.reminderVehicle;
+        if (vehicleId && vehicleId !== VehicleStorage.getActiveVehicleId()) {
+          if (CloudGarage.draft && !confirm("Opustit rozpracovaný formulář a přejít na vozidlo s blížícím se termínem?")) return;
+          VehicleStorage.setActiveVehicleId(vehicleId);
+          this.resetForm();
+          this.render();
+        }
+        this.switchTab("plan");
+      });
     });
   }
 
@@ -1531,6 +1563,7 @@ class App {
     document.getElementById("vehicle-modal-title").textContent = isEdit ? "Upravit stroj" : "Přidat stroj";
     document.getElementById("veh-id").value = isEdit ? vehicle.id : "";
     ClientBook.fillSelect(vehicle?.clientId || '');
+    document.getElementById("veh-ownership").value = VehicleOwnership.get(vehicle);
 
     this.modalBrand = isEdit ? (vehicle.brand || "audi") : "audi";
     this.renderBrandGrid();
@@ -1717,6 +1750,7 @@ class App {
     });
 
     vehicle.clientId = document.getElementById('veh-client').value;
+    vehicle.ownership = document.getElementById('veh-ownership').value;
     const saved = VehicleStorage.saveVehicle(vehicle);
     VehicleStorage.syncVehicleMileage(saved.id);
     if (!id) VehicleStorage.setActiveVehicleId(saved.id);
@@ -1732,7 +1766,11 @@ class App {
   static openGarageModal() {
     const container = document.getElementById("garage-list");
     const query = Utils.norm(document.getElementById('garage-search').value);
-    const vehicles = VehicleStorage.getVehicles().filter(v => Utils.norm([this.vehicleName(v),v.spz,v.vin,ClientBook.name(v)].join(' ')).includes(query));
+    const ownerFilter = document.getElementById('garage-type-filter').value || 'all';
+    const vehicles = VehicleStorage.getVehicles().filter(v =>
+      (ownerFilter === 'all' || VehicleOwnership.get(v) === ownerFilter) &&
+      Utils.norm([this.vehicleName(v),v.spz,v.vin,ClientBook.name(v)].join(' ')).includes(query)
+    );
     const activeId = VehicleStorage.getActiveVehicleId();
 
     if (!vehicles.length) {
@@ -1744,9 +1782,10 @@ class App {
         const records = VehicleStorage.getServicesForVehicle(v.id);
         const spend = records.reduce((s, r) => s + Utils.money(r.totalPrice), 0);
         const isActive = v.id === activeId;
+        const ownership = VehicleOwnership.get(v);
         const name = this.vehicleName(v);
 
-        return '<div class="garage-card' + (isActive ? " active" : "") + '">' +
+        return '<div class="garage-card' + (isActive ? " active" : "") + '" data-ownership="' + ownership + '">' +
           '<span class="garage-logo">' +
             (brand && brand.logo
               ? '<img src="' + brand.logo + '" alt="">'
@@ -1755,7 +1794,8 @@ class App {
           "<div class=\"garage-info\">" +
             "<strong>" + Utils.esc(name.trim()) + "</strong>" +
             "<span>" + Utils.esc(v.engineName || "") + "</span>" +
-            '<span>' + Utils.esc(ClientBook.name(v)) + '</span>' +
+            '<span class="pill pill-soft">' + VehicleOwnership.label(v) + '</span>' +
+            (ownership === 'client' ? '<span>' + Utils.esc(ClientBook.name(v)) + '</span>' : '') +
             "<span class=\"garage-meta\">" +
               (v.year || "—") + " · " + Utils.esc(v.spz || "bez SPZ") + " · " +
               Utils.km(v.mileage) + " · " + Utils.plural(records.length, "záznam", "záznamy", "záznamů") +
@@ -1918,6 +1958,7 @@ class App {
 
   static bindHeader() {
     document.getElementById("garage-btn").addEventListener("click", () => this.openGarageModal());
+    document.getElementById("garage-type-filter").addEventListener("change", () => this.openGarageModal());
     document.getElementById("add-vehicle-btn").addEventListener("click", () => this.openVehicleModal(null));
     document.getElementById("backup-btn").addEventListener("click", () => this.openBackupModal());
     document.getElementById("settings-btn").addEventListener("click", () => this.openSettingsModal());
@@ -1937,6 +1978,9 @@ class App {
       this.renderDocumentFields(null, true);
     });
     document.getElementById("veh-engine").addEventListener("change", () => this.updateEngineHint());
+    document.getElementById("veh-client").addEventListener("change", e => {
+      if (e.target.value) document.getElementById("veh-ownership").value = "client";
+    });
 
     document.getElementById("veh-vin").addEventListener("input", e => {
       const value = e.target.value.trim();
