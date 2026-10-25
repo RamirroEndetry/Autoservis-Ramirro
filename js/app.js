@@ -1249,6 +1249,15 @@ class App {
     ClientBook.updateSettlementForm();
   }
 
+  static adjustCustomTotal(delta) {
+    // A manually agreed price may include work/discounts outside the item list.
+    // Change it only by the added/removed custom item, never replace it by a sum.
+    if (document.getElementById('auto-sum').checked) return;
+    const input = document.getElementById('srv-price');
+    input.value = Math.round((Utils.money(input.value) + delta) * 100) / 100;
+    ClientBook.updateSettlementForm();
+  }
+
   static updateFormSummary() {
     const count = this.selected.size + this.customItems.length;
     const total = Utils.money(document.getElementById("srv-price").value);
@@ -1301,6 +1310,8 @@ class App {
 
     list.querySelectorAll("[data-remove]").forEach(btn => {
       btn.addEventListener("click", () => {
+        const removed = this.customItems.find(i => i.id === btn.dataset.remove);
+        if (removed) this.adjustCustomTotal(-Utils.money(removed.price));
         this.customItems = this.customItems.filter(i => i.id !== btn.dataset.remove);
         this.renderCustomItems();
         this.afterSelectionChange();
@@ -1320,7 +1331,9 @@ class App {
     document.getElementById("srv-mileage").value = record.mileage || "";
     document.getElementById("srv-workshop").value = record.workshop || "";
     document.getElementById("srv-notes").value = record.notes || "";
-    document.getElementById("auto-sum").checked = false;
+    const itemTotal = (record.items || []).reduce((sum, item) => sum + Math.round(Utils.money(item.price) * 100), 0);
+    document.getElementById("auto-sum").checked = record.priceMode === 'items' ||
+      (!record.priceMode && itemTotal === Math.round(Utils.money(record.totalPrice) * 100));
     document.getElementById("srv-price").value = record.totalPrice || "";
     document.getElementById("srv-payment-enabled").checked = record.payment?.enabled === true;
     document.getElementById("srv-payment-vs").value = record.payment?.variableSymbol || "";
@@ -1432,6 +1445,7 @@ class App {
       date: date,
       mileage: Utils.num(mileage),
       totalPrice: Utils.money(document.getElementById("srv-price").value),
+      priceMode: document.getElementById('auto-sum').checked ? 'items' : 'manual',
       workshop: document.getElementById("srv-workshop").value.trim(),
       notes: document.getElementById("srv-notes").value.trim(),
       items: items
@@ -1966,7 +1980,10 @@ class App {
       this.updateFormSummary();
     });
 
-    document.getElementById("srv-price").addEventListener("input", () => this.updateFormSummary());
+    document.getElementById("srv-price").addEventListener("input", () => {
+      document.getElementById('auto-sum').checked = false;
+      this.updateFormSummary();
+    });
 
     document.getElementById("item-search").addEventListener("input", Utils.debounce(e => {
       this.itemQuery = e.target.value;
@@ -1984,6 +2001,7 @@ class App {
     });
 
     document.getElementById("clear-items-btn").addEventListener("click", () => {
+      this.adjustCustomTotal(-this.customItems.reduce((sum,item) => sum + Utils.money(item.price),0));
       this.selected = new Map();
       this.customItems = [];
       this.renderAccordion();
@@ -2010,6 +2028,7 @@ class App {
       label: label,
       price: Utils.money(priceInput.value)
     });
+    this.adjustCustomTotal(Utils.money(priceInput.value));
 
     nameInput.value = "";
     priceInput.value = "";

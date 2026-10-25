@@ -34,6 +34,12 @@ Klienti jsou součástí settings.clients v existujícím zabezpečeném payload
 
 Ověření: node tests/clients-settlement.cjs --browser — formuláře klientů, přiřazení vozidla, hledání, úhrady, skutečné nezávislé dekódování QR s doplatkem, obnovení zálohy a mobilní zobrazení.
 
+## Sčítání vlastních úkonů
+
+Přidání vlastního úkonu automaticky zvýší celkovou cenu a odebrání ji sníží. V automatickém režimu se přepočítá součet položek; v ručním režimu se upraví jen rozdíl, aby zůstala zachovaná dohodnutá cena včetně práce či slev mimo položky. Režim se ukládá se servisním záznamem. U starších záznamů se automatika zapne při shodě součtu položek s uloženou cenou. Ruční přepsání celkové ceny přepne daný formulář na ruční režim.
+
+Ověření: node tests/custom-total.cjs (Playwright + Edge).
+
 ## Faktury za díly
 
 V záložce **Nový záznam** vyberte PDF, JPG, PNG nebo WebP v části **Načíst díly z faktury**. Aplikace přečte text PDF, u skenu nebo fotky použije české a anglické OCR. Limit je 20 MB a 15 stran PDF. Zpracování běží v prohlížeči; z CDN se stahují knihovny PDF.js 4.10.38, Tesseract.js 5.1.1 a jazyková data. Bez jejich načtení je potřeba zadat díly ručně.
