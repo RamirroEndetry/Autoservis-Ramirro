@@ -63,6 +63,7 @@
       </div>
 
       <nav class="header-actions" aria-label="Hlavní akce">
+        <button type="button" id="clients-btn" class="btn btn-ghost">Klienti a úhrady</button>
         <button type="button" id="garage-btn" class="btn btn-ghost">
           <i class="fa-solid fa-warehouse" aria-hidden="true"></i>
           <span id="garage-btn-label">Garáž</span>
@@ -110,6 +111,7 @@
             <p class="hero-eyebrow"><span id="hero-kind">Automobil</span> <span id="hero-year-badge" class="pill">—</span></p>
             <h2 id="hero-title">—</h2>
             <p id="hero-engine" class="hero-engine">—</p>
+            <p id="hero-client" class="hero-engine">Bez přiřazeného klienta</p>
             <div class="hero-meta">
               <span class="meta-chip" title="Registrační značka">
                 <i class="fa-solid fa-id-card" aria-hidden="true"></i> <strong id="hero-spz">—</strong>
@@ -258,9 +260,14 @@
           </div>
 
           <div class="panel">
-            <div class="panel-head"><h3>QR platba na protokolu</h3></div>
-            <label><input type="checkbox" id="srv-payment-enabled"> Přidat QR platbu k úhradě celkové ceny servisu</label>
-            <p class="field-hint">Účet příjemce: <strong>824880004/5500</strong> · měna CZK. Zapněte jen u nezaplaceného servisu; částka se převezme z celkové ceny výše.</p>
+            <div class="panel-head"><h3>Úhrada a QR platba</h3></div>
+            <div class="grid-2">
+              <div class="field"><label for="srv-settlement">Stav úhrady</label><select id="srv-settlement" class="form-control"><option value="unknown">Neuvedeno</option><option value="unpaid">Nezaplaceno</option><option value="partial">Částečně zaplaceno</option><option value="paid">Zaplaceno</option></select></div>
+              <div class="field" id="srv-paid-field" hidden><label for="srv-paid">Již uhrazeno (Kč)</label><input id="srv-paid" class="form-control" type="number" min="0" step="0.01" inputmode="decimal"></div>
+            </div>
+            <p id="srv-due" class="field-hint" role="status">Stav úhrady není evidovaný.</p>
+            <label><input type="checkbox" id="srv-payment-enabled"> Přidat QR platbu na zbývající částku</label>
+            <p class="field-hint">Účet příjemce: <strong>824880004/5500</strong> · měna CZK. Částečná úhrada se odečte. U zaplaceného servisu se QR nezobrazí. Jde o ruční evidenci; platby se nekontrolují v bance.</p>
             <div class="field">
               <label for="srv-payment-vs">Variabilní symbol (nepovinný)</label>
               <input type="text" id="srv-payment-vs" class="form-control" inputmode="numeric" maxlength="10" placeholder="Např. číslo vaší faktury, pouze číslice">
@@ -420,6 +427,7 @@
 
       <form id="vehicle-form" novalidate>
         <input type="hidden" id="veh-id">
+        <div class="field"><label for="veh-client">Klient</label><select id="veh-client" class="form-control"><option value="">Bez přiřazeného klienta</option></select><small class="field-hint">Novou kartu založíte přes tlačítko Klienti a úhrady.</small></div>
 
         <fieldset class="field">
           <legend>Značka <span class="req">*</span></legend>
@@ -495,6 +503,7 @@
         <h3 id="garage-modal-title"><i class="fa-solid fa-warehouse" aria-hidden="true"></i> Moje garáž</h3>
         <button type="button" class="modal-close" data-close="garage-modal" aria-label="Zavřít">&times;</button>
       </div>
+      <div class="field"><label for="garage-search">Hledat vozidlo nebo klienta</label><input type="search" id="garage-search" class="form-control" placeholder="Model, klient, SPZ nebo VIN"></div>
       <div id="garage-list" class="garage-list"></div>
       <div class="modal-foot">
         <button type="button" class="btn btn-primary" data-action="add-vehicle">
@@ -576,6 +585,22 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="clients-modal" role="dialog" aria-modal="true" aria-labelledby="clients-title" hidden>
+    <div class="modal">
+      <div class="modal-head"><h3 id="clients-title">Klienti a úhrady</h3><button type="button" class="modal-close" data-close="clients-modal" aria-label="Zavřít">&times;</button></div>
+      <div class="field"><label for="clients-search">Hledat klienta nebo vozidlo</label><input type="search" id="clients-search" class="form-control" placeholder="Jméno, telefon, e-mail, SPZ nebo VIN"></div>
+      <h4>Čekající úhrady</h4><p id="receivable-summary"></p><div id="receivable-list"></div>
+      <h4>Karty klientů</h4><div id="clients-list"></div>
+      <form id="client-form">
+        <h4 id="client-form-title">Nový klient</h4><input id="client-id" type="hidden">
+        <div class="field"><label for="client-name">Jméno nebo firma *</label><input id="client-name" class="form-control" required maxlength="160"></div>
+        <div class="grid-2"><div class="field"><label for="client-phone">Telefon</label><input id="client-phone" type="tel" class="form-control" maxlength="60"></div><div class="field"><label for="client-email">E-mail</label><input id="client-email" type="email" class="form-control" maxlength="254"></div></div>
+        <div class="field"><label for="client-notes">Poznámka ke klientovi</label><textarea id="client-notes" class="form-control" rows="3" maxlength="4000"></textarea></div>
+        <div class="modal-foot"><button type="button" id="client-cancel" class="btn btn-ghost">Zrušit úpravu</button><button class="btn btn-primary">Uložit klienta</button></div>
+      </form>
+    </div>
+  </div>
+
   <!-- ======================= MODÁL: POTVRZENÍ ============================ -->
   <div class="modal-overlay" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" hidden>
     <div class="modal modal-narrow">
@@ -604,6 +629,7 @@
   <script src="js/storage.js"></script>
   <script src="js/vendor/qrcode.js"></script>
   <script src="js/payment.js"></script>
+  <script src="js/clients.js"></script>
   <script src="js/pdf.js"></script>
   <script src="js/invoice.js"></script>
   <script src="js/app.js"></script>

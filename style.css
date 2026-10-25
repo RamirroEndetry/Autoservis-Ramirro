@@ -1218,3 +1218,7 @@ fieldset { border: none; }
 .cloud-bar[data-state=saved] #sync-status { color:#90d879; }
 .cloud-bar[data-state=error] #sync-status { color:#ffbb82; }
 #auth-gate[hidden], #private-app[hidden], #password-form[hidden], #login-form[hidden] { display:none !important; }
+.client-card { border:1px solid var(--border,#354050); border-radius:12px; padding:14px; margin:12px 0; overflow-wrap:anywhere; }
+.client-card h4, .client-card p { margin:0 0 10px; }
+.client-vehicles { display:flex; gap:8px; flex-wrap:wrap; margin:10px 0; }
+.settlement-label { display:block; font-size:.75rem; font-weight:400; margin-top:5px; }

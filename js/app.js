@@ -153,7 +153,7 @@ const UI = {
 
   openModal(id) {
     const el = document.getElementById(id);
-    if (!el) return;
+    if (!el || !el.hidden) return;
     UI.openStack.push({ id: id, lastFocus: document.activeElement });
     el.hidden = false;
     document.body.classList.add("modal-open");
@@ -162,6 +162,7 @@ const UI = {
   },
 
   closeModal(id) {
+    if (id === 'clients-modal' && typeof CloudGarage !== 'undefined') CloudGarage.draft = !!ClientBook.previousDraft;
     if (id === 'vehicle-modal' && typeof CloudGarage !== 'undefined') CloudGarage.draft = !!CloudGarage.beforeVehicleDraft;
     const el = document.getElementById(id);
     if (!el) return;
@@ -648,6 +649,7 @@ class App {
     this.bindServiceForm();
     this.bindBackup();
     this.bindSettings();
+    ClientBook.init();
     Background.start();
     this.render();
 
@@ -663,6 +665,7 @@ class App {
     }
 
     document.getElementById("garage-btn-label").textContent = "Garáž (" + vehicles.length + ")";
+    ClientBook.render();
 
     const hasVehicle = !!this.vehicle;
     document.getElementById("no-vehicle-state").hidden = hasVehicle;
@@ -985,7 +988,7 @@ class App {
               (r.workshop ? '<span><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i> ' + Utils.esc(r.workshop) + "</span>" : "") +
             "</p>" +
           "</div>" +
-          '<div class="record-price">' + Utils.kc(r.totalPrice) + "</div>" +
+          '<div class="record-price">' + Utils.kc(r.totalPrice) + '<small class="settlement-label">' + ServiceSettlement.summary(r).label + (ServiceSettlement.summary(r).status !== 'unknown' && ServiceSettlement.summary(r).due > 0 ? ' · Zbývá ' + Utils.kc(ServiceSettlement.summary(r).due) : '') + '</small></div>' +
         "</header>" +
         (tags ? '<div class="tag-list">' + tags + "</div>" : "") +
         oil +
@@ -1243,6 +1246,7 @@ class App {
     this.customItems.forEach(item => { sum += Utils.money(item.price); });
     const input = document.getElementById("srv-price");
     input.value = sum !== 0 ? Math.round(sum * 100) / 100 : "";
+    ClientBook.updateSettlementForm();
   }
 
   static updateFormSummary() {
@@ -1320,6 +1324,10 @@ class App {
     document.getElementById("srv-price").value = record.totalPrice || "";
     document.getElementById("srv-payment-enabled").checked = record.payment?.enabled === true;
     document.getElementById("srv-payment-vs").value = record.payment?.variableSymbol || "";
+    document.getElementById('srv-settlement').value = ServiceSettlement.summary(record).status;
+    ClientBook.paidAtTotal = record.settlement?.paidAmount ?? null;
+    document.getElementById('srv-paid').value = record.settlement?.paidAmount ?? '';
+    ClientBook.updateSettlementForm();
 
     this.selected = new Map();
     this.customItems = [];
@@ -1373,6 +1381,8 @@ class App {
 
     const form = document.getElementById("service-form");
     form.reset();
+    ClientBook.paidAtTotal = null;
+    ClientBook.updateSettlementForm();
 
     // Čte se aktuální stroj z úložiště – formulář se resetuje i při jeho přepnutí.
     const vehicle = VehicleStorage.getActiveVehicle();
@@ -1427,12 +1437,14 @@ class App {
       items: items
     };
 
+    try { record.settlement = ServiceSettlement.fromForm(record.totalPrice,document.getElementById('srv-settlement').value,document.getElementById('srv-paid').value); }
+    catch(error) { return {error:error.message}; }
     record.payment = {
       enabled: document.getElementById("srv-payment-enabled").checked,
       variableSymbol: document.getElementById("srv-payment-vs").value.trim()
     };
-    if (record.payment.enabled) {
-      try { PaymentQR.payload(record.totalPrice, record.payment.variableSymbol); }
+    if (record.payment.enabled && ServiceSettlement.summary(record).status !== 'paid') {
+      try { PaymentQR.payload(ServiceSettlement.summary(record).due, record.payment.variableSymbol); }
       catch (error) { return { error: error.message }; }
     }
 
@@ -1504,6 +1516,7 @@ class App {
     const isEdit = !!vehicle;
     document.getElementById("vehicle-modal-title").textContent = isEdit ? "Upravit stroj" : "Přidat stroj";
     document.getElementById("veh-id").value = isEdit ? vehicle.id : "";
+    ClientBook.fillSelect(vehicle?.clientId || '');
 
     this.modalBrand = isEdit ? (vehicle.brand || "audi") : "audi";
     this.renderBrandGrid();
@@ -1689,6 +1702,7 @@ class App {
       vehicle[input.dataset.doc] = input.value || "";
     });
 
+    vehicle.clientId = document.getElementById('veh-client').value;
     const saved = VehicleStorage.saveVehicle(vehicle);
     VehicleStorage.syncVehicleMileage(saved.id);
     if (!id) VehicleStorage.setActiveVehicleId(saved.id);
@@ -1703,11 +1717,12 @@ class App {
 
   static openGarageModal() {
     const container = document.getElementById("garage-list");
-    const vehicles = VehicleStorage.getVehicles();
+    const query = Utils.norm(document.getElementById('garage-search').value);
+    const vehicles = VehicleStorage.getVehicles().filter(v => Utils.norm([this.vehicleName(v),v.spz,v.vin,ClientBook.name(v)].join(' ')).includes(query));
     const activeId = VehicleStorage.getActiveVehicleId();
 
     if (!vehicles.length) {
-      container.innerHTML = '<p class="muted-note">Garáž je prázdná.</p>';
+      container.innerHTML = '<p class="muted-note">Žádná odpovídající vozidla.</p>';
     } else {
       container.innerHTML = vehicles.map(v => {
         const brand = VehicleCatalog.brand(v.brand);
@@ -1726,6 +1741,7 @@ class App {
           "<div class=\"garage-info\">" +
             "<strong>" + Utils.esc(name.trim()) + "</strong>" +
             "<span>" + Utils.esc(v.engineName || "") + "</span>" +
+            '<span>' + Utils.esc(ClientBook.name(v)) + '</span>' +
             "<span class=\"garage-meta\">" +
               (v.year || "—") + " · " + Utils.esc(v.spz || "bez SPZ") + " · " +
               Utils.km(v.mileage) + " · " + Utils.plural(records.length, "záznam", "záznamy", "záznamů") +

@@ -17,6 +17,14 @@ const GarageSync = {
       }
     }
     const vehicles = new Set(data.vehicles.map(v => v.id));
+    if (data.settings.clients !== undefined) {
+      if (!Array.isArray(data.settings.clients)) throw new Error('Neplatný seznam klientů.');
+      const ids = new Set();
+      for (const c of data.settings.clients) {
+        if (!c || typeof c.id !== 'string' || !c.id || ids.has(c.id) || typeof c.name !== 'string' || !c.name.trim()) throw new Error('Neplatná nebo duplicitní karta klienta.');
+        ids.add(c.id);
+      }
+    }
     if (data.services.some(s => !vehicles.has(s.vehicleId))) throw new Error('Servisní záznam odkazuje na chybějící vozidlo.');
     return data;
   },
@@ -36,6 +44,15 @@ const GarageSync = {
       }
     }
     for (const key of new Set([base,local,remote].flatMap(d => Object.keys(d.settings)))) {
+      if (key === 'clients') {
+        const maps = [base,local,remote].map(d => new Map((d.settings.clients || []).map(c => [c.id,c])));
+        result.settings.clients = [];
+        for (const id of new Set(maps.flatMap(m => [...m.keys()]))) {
+          const client = pick(...maps.map(m => m.get(id)),'clients:' + id);
+          if (client !== undefined) result.settings.clients.push(client);
+        }
+        continue;
+      }
       const value = pick(base.settings[key],local.settings[key],remote.settings[key],'settings:' + key);
       if (value !== undefined) result.settings[key] = value;
     }

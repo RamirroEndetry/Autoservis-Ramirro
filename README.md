@@ -24,6 +24,16 @@ Knihovna Supabase JS 2.118.0 je lokálně v js/vendor/supabase.js (MIT, přilož
 
 Kontroly: node tests/sync-model.cjs a node tests/cloud-browser.cjs. Druhý test používá skutečnou knihovnu Supabase s testovacími HTTP odpověďmi, dvě oddělená zařízení, výpadky, konflikty, opakovaný zápis, odhlášení, QR a chybu místního úložiště. Regresní testy katalogů a QR používají izolovaný místní testovací start bez autentizace; produkční aplikace takový přepínač nemá.
 
+## Klienti a úhrady
+
+Tlačítko **Klienti a úhrady** otevře karty klientů (jméno/firma, telefon, e-mail a interní poznámka), jejich vozidla a přehled známých neuhrazených částek. Klienta založte a v **Upravit stroj → Klient** jej přiřaďte k jednomu nebo více vozidlům. Hledání v kartách i garáži pracuje se jménem, SPZ a VIN; karty navíc s kontakty a poznámkou. Kontakty se nikam automaticky neodesílají a interní poznámky klienta nejsou na protokolu.
+
+U servisu zvolte **Neuvedeno / Nezaplaceno / Částečně zaplaceno / Zaplaceno**. Částečná úhrada eviduje souhrnnou již přijatou částku v Kč; nejde o bankovní napojení ani historii jednotlivých plateb. Stav a doplatek jsou vidět v historii i na protokolu. Starší záznamy zůstávají bez uvedeného stavu a nejsou započítané jako dluh. Při zvýšení ceny již zaplaceného servisu se zachová původní uhrazená částka; snížení ceny pod úhradu vyžaduje ruční vyřešení přeplatku.
+
+Klienti jsou součástí settings.clients v existujícím zabezpečeném payloadu a zálohách. Vazba vozidla je clientId, úhrada servisu settlement. Nevyžaduje se změna databázové struktury. Synchronizace slučuje různé klienty podle ID, změnu stejného klienta chrání konfliktem. Import Připojit chybějící zachová současné karty se stejným ID.
+
+Ověření: node tests/clients-settlement.cjs --browser — formuláře klientů, přiřazení vozidla, hledání, úhrady, skutečné nezávislé dekódování QR s doplatkem, obnovení zálohy a mobilní zobrazení.
+
 ## Faktury za díly
 
 V záložce **Nový záznam** vyberte PDF, JPG, PNG nebo WebP v části **Načíst díly z faktury**. Aplikace přečte text PDF, u skenu nebo fotky použije české a anglické OCR. Limit je 20 MB a 15 stran PDF. Zpracování běží v prohlížeči; z CDN se stahují knihovny PDF.js 4.10.38, Tesseract.js 5.1.1 a jazyková data. Bez jejich načtení je potřeba zadat díly ručně.
@@ -36,7 +46,7 @@ U jiných tabulek použije orientační návrh poslední částky na řádku a v
 
 ## QR platba na servisním protokolu
 
-U servisního záznamu zapněte **Přidat QR platbu k úhradě celkové ceny servisu**, případně vyplňte variabilní symbol (1–10 číslic), a záznam uložte. Potom v historii otevřete **Protokol**. Náhled, tisk i export PDF obsahují QR kód a čitelné platební údaje. Částka odpovídá uložené celkové ceně v Kč včetně haléřů; neodečítají se zálohy ani částečné úhrady. U uhrazeného servisu volbu vypněte. Starší záznamy ji mají vypnutou a kompletní servisní knížka platební QR neobsahuje.
+U servisního záznamu zapněte **Přidat QR platbu na zbývající částku**, případně vyplňte variabilní symbol (1–10 číslic), a záznam uložte. Potom v historii otevřete **Protokol**. Náhled, tisk i export PDF obsahují QR kód a čitelné platební údaje. Částka odpovídá zbývajícímu doplatku v Kč včetně haléřů po odečtení evidované úhrady. U zaplaceného servisu se QR nezobrazí. Při neuvedeném stavu se pro zpětnou kompatibilitu použije celková cena. Starší záznamy ji mají vypnutou a kompletní servisní knížka platební QR neobsahuje.
 
 Příjemce: **824880004/5500**, IBAN **CZ9555000000000824880004**. Formát [QR Platba / SPAYD 1.0](https://qr-platba.cz/pro-vyvojare/specifikace-formatu/), měna CZK, korekce chyb M, bílý okraj 4 moduly. Číslo protokolu není číslem faktury, proto se z něj automaticky nevymýšlí VS. Prázdný VS znamená platbu bez symbolu. Nulová, záporná, neplatná či příliš vysoká částka QR platbu blokuje.
 

@@ -229,8 +229,8 @@ const CloudGarage = {
     action('sync-backup',()=>this.download());
     action('sync-resolve',()=>this.resolve());
     action('legacy-import',()=>this.importLegacy());
-    document.addEventListener('input',e=>{if(e.target.closest('#service-form, #vehicle-modal')) this.draft=true;},true);
-    document.addEventListener('click',e=>{if(e.target.closest('#service-form, #vehicle-modal')) this.draft=true;},true);
+    document.addEventListener('input',e=>{if(e.target.closest('#service-form, #vehicle-modal, #client-form')) this.draft=true;},true);
+    document.addEventListener('click',e=>{if(e.target.closest('#service-form, #vehicle-modal, #client-form')) this.draft=true;},true);
     window.addEventListener('online',()=>this.sync());
     window.addEventListener('offline',()=>this.status('Bez internetu — změny čekají v tomto prohlížeči.','error'));
     window.addEventListener('beforeunload',e=>{if(this.dirty()||this.draft){e.preventDefault();e.returnValue='';}});

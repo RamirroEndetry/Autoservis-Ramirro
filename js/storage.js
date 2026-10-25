@@ -336,7 +336,15 @@ class VehicleStorage {
       this.write(STORAGE_KEYS.SERVICES, incomingServices);
     }
 
-    if (parsed.settings) this.saveSettings(parsed.settings);
+    if (parsed.settings) {
+      const settings = {...parsed.settings};
+      if (mode === 'merge' && Array.isArray(settings.clients)) {
+        const clients = this.getSettings().clients || [];
+        const ids = new Set(clients.map(c => c.id));
+        settings.clients = [...clients,...settings.clients.filter(c => !ids.has(c.id))];
+      }
+      this.saveSettings(settings);
+    }
 
     const all = this.getVehicles();
     const wanted = parsed.activeVehicleId && all.some(v => v.id === parsed.activeVehicleId)

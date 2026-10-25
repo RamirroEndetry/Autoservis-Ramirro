@@ -55,16 +55,20 @@ let base;
     const a=await device(browser);
     await a.page.evaluate(async()=>{
       VehicleStorage.saveVehicle({id:'car',brand:'ford',modelKey:'focus_4',modelName:'Focus IV',year:2018,mileage:1000,baseMileage:1000});
+      const client=ClientBook.save({name:'Cloud synthetic client',phone:'123',email:'owner@example.test',notes:''});
+      VehicleStorage.saveVehicle({id:'car',clientId:client.id});
       clearTimeout(CloudGarage.timer); await CloudGarage.sync();App.render();
     });
     assert.equal(remote.payload.vehicles.length,1);
     const b=await device(browser);assert.equal(await b.page.evaluate(()=>VehicleStorage.getVehicles().length),1);
+    assert.equal(await b.page.evaluate(()=>ClientBook.name(VehicleStorage.getVehicle('car'))),'Cloud synthetic client');
     // Two separate devices add unrelated services from the same baseline.
     await Promise.all([a.page,b.page].map((p,i)=>p.evaluate(i=>{
-      VehicleStorage.saveServiceRecord({id:'srv'+i,vehicleId:'car',date:'2026-10-24',mileage:1000,totalPrice:100+i,items:[],notes:'synthetic',payment:{enabled:true,variableSymbol:'000123'}});clearTimeout(CloudGarage.timer);
+      VehicleStorage.saveServiceRecord({id:'srv'+i,vehicleId:'car',date:'2026-10-24',mileage:1000,totalPrice:100+i,items:[],notes:'synthetic',settlement:{status:'partial',paidAmount:10},payment:{enabled:true,variableSymbol:'000123'}});clearTimeout(CloudGarage.timer);
     },i)));
     await a.page.evaluate(()=>CloudGarage.sync());await b.page.evaluate(()=>CloudGarage.sync());
     assert.equal(remote.payload.services.length,2);
+    assert.equal(remote.payload.services[0].settlement.paidAmount,10);
     await a.page.evaluate(()=>CloudGarage.sync());
     assert.equal(await a.page.evaluate(()=>VehicleStorage.getAllServices().length),2);
     // Retry an optimistic write rejected by the database.

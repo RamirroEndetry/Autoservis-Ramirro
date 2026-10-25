@@ -278,14 +278,15 @@ class PDFServicePrinter {
     const itemsSum = items.reduce((sum, i) => sum + this.num(i.price), 0);
     const rest = this.num(record.totalPrice) - itemsSum;
     let paymentHtml = '';
-    if (record.payment && record.payment.enabled === true) {
+    const settlement = ServiceSettlement.summary(record);
+    if (record.payment && record.payment.enabled === true && settlement.status !== 'paid') {
       const vs = String(record.payment.variableSymbol || '').trim();
-      const payload = PaymentQR.payload(record.totalPrice, vs);
+      const payload = PaymentQR.payload(settlement.due, vs);
       const image = PaymentQR.image(payload);
       paymentHtml = `<section class="payment avoid-break" aria-label="QR platba">
         <img src="${image}" alt="QR platba na účet ${this.esc(PaymentQR.account)}" width="182" height="182">
         <div><h2>QR platba</h2>
-          <p><b>Částka k úhradě:</b> ${this.kc(record.totalPrice)}</p>
+          <p><b>Částka k úhradě:</b> ${this.kc(settlement.due)}</p>
           <p><b>Účet:</b> ${this.esc(PaymentQR.account)}</p>
           <p><b>IBAN:</b> ${this.esc(PaymentQR.iban)}</p>
           <p><b>Variabilní symbol:</b> ${this.esc(vs || 'neuveden')}</p>
@@ -368,6 +369,7 @@ ${this.toolbar("Servisní protokol", fileName)}
     <div class="sig">Podpis majitele stroje</div>
   </div>
 
+  <p class="avoid-break"><b>Úhrada:</b> ${this.esc(settlement.label)}${settlement.status !== 'unknown' ? ' · Uhrazeno ' + this.kc(settlement.paid) + ' · Zbývá ' + this.kc(settlement.due) : ''}</p>
   ${paymentHtml}
 
   <div class="footer">Vygenerováno ${this.date(new Date().toISOString().slice(0, 10), true)} · Digitální servisní kniha</div>
