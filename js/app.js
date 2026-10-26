@@ -652,6 +652,13 @@ class App {
     ClientBook.init();
     Background.start();
     this.render();
+    this.reminderDay = Utils.today();
+    if (!this.reminderTimer) {
+      this.reminderTimer = setInterval(() => this.refreshReminderDay(), 60000);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) this.refreshReminderDay();
+      });
+    }
 
   }
 
@@ -712,6 +719,7 @@ class App {
     const v = this.vehicle;
     const brand = VehicleCatalog.brand(v.brand);
     const kind = VehicleCatalog.kindOf(v);
+    this.renderStkStatus();
 
     const logo = document.getElementById("hero-logo");
     if (brand && brand.logo) {
@@ -740,6 +748,40 @@ class App {
   }
 
   /* --------------------------- Upozornění ----------------------------- */
+
+  static stkStatus(vehicle) {
+    const days = Utils.daysUntil(vehicle?.stkUntil);
+    if (days === null) return {state:'unknown', title:'STK · Datum není vyplněné', detail:'Doplňte platnost STK'};
+    const state = days < 0 ? 'overdue' : days <= 30 ? 'soon' : 'ok';
+    const detail = days < 0 ? 'PROPADLÁ · ' + Utils.relative(days)
+      : days === 0 ? 'KONČÍ DNES'
+      : days <= 30 ? 'BRZY KONČÍ · ' + Utils.relative(days)
+      : 'Platná · ' + Utils.relative(days);
+    return {state, title:'STK do ' + Utils.fmtDate(vehicle.stkUntil), detail};
+  }
+
+  static refreshReminderDay() {
+    const today = Utils.today();
+    if (today === this.reminderDay || document.hidden || document.getElementById('private-app').hidden) return;
+    this.reminderDay = today;
+    if (!this.vehicle) return;
+    this.renderStkStatus();
+    this.renderAlerts();
+    this.renderPlan();
+    if (!document.getElementById('garage-modal').hidden) this.openGarageModal();
+  }
+
+  static stkMarkup(vehicle) {
+    const status = this.stkStatus(vehicle);
+    return '<i class="fa-solid fa-clipboard-check" aria-hidden="true"></i><span><strong>' +
+      Utils.esc(status.title) + '</strong><small>' + Utils.esc(status.detail) + '</small></span>';
+  }
+
+  static renderStkStatus() {
+    const badge = document.getElementById('hero-stk');
+    badge.className = 'stk-status stk-' + this.stkStatus(this.vehicle).state;
+    badge.innerHTML = this.stkMarkup(this.vehicle);
+  }
 
   /** Sestaví seznam blížících se nebo prošlých lhůt. */
   static buildReminders() {
@@ -878,8 +920,13 @@ class App {
         '<span><strong>' + Utils.esc(r.label) + '</strong>' + Utils.esc(r.detail) + '</span>' +
       "</button>"
     ).join("") + (urgent.length > 4
-      ? '<button type="button" class="alert alert-more" data-goto-plan>+' + (urgent.length - 4) + " další</button>"
+      ? '<button type="button" class="alert alert-more" data-show-garage>+' + (urgent.length - 4) + " další · otevřít přehled vozidel</button>"
       : "");
+    strip.querySelector('[data-show-garage]')?.addEventListener('click', () => {
+      document.getElementById('garage-search').value = '';
+      document.getElementById('garage-type-filter').value = 'all';
+      this.openGarageModal();
+    });
 
     strip.querySelectorAll("[data-goto-plan]").forEach(btn => {
       btn.addEventListener("click", () => {
@@ -1826,6 +1873,7 @@ class App {
             "<strong>" + Utils.esc(name.trim()) + "</strong>" +
             "<span>" + Utils.esc(v.engineName || "") + "</span>" +
             '<span class="pill pill-soft">' + VehicleOwnership.label(v) + '</span>' +
+            '<div class="stk-status stk-' + this.stkStatus(v).state + '">' + this.stkMarkup(v) + '</div>' +
             (ownership === 'client' ? '<span>' + Utils.esc(ClientBook.name(v)) + '</span>' : '') +
             "<span class=\"garage-meta\">" +
               (v.year || "—") + " · " + Utils.esc(v.spz || "bez SPZ") + " · " +
@@ -1988,6 +2036,7 @@ class App {
   }
 
   static bindHeader() {
+    document.getElementById('hero-stk').addEventListener('click', () => this.switchTab('plan'));
     document.getElementById("garage-btn").addEventListener("click", () => this.openGarageModal());
     document.getElementById("garage-type-filter").addEventListener("change", () => this.openGarageModal());
     document.getElementById("add-vehicle-btn").addEventListener("click", () => this.openVehicleModal(null));

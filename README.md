@@ -36,6 +36,8 @@ U každého vozidla lze zvolit **Vlastní** nebo **Klientské** a v garáži pod
 
 Blížící se STK a další doklady s vyplněným datem se zobrazí v horním upozornění 30 dní před termínem, a to napříč všemi vozidly. Kliknutím se otevře příslušné vozidlo a záložka Připomínky. Upozornění se zobrazí po otevření aplikace a přihlášení; při zavřené aplikaci se neposílá push ani e-mail.
 
+STK má navíc výrazný štítek s datem v detailu i na každé kartě garáže: zelený při platnosti, oranžový 30 dní před koncem a v den konce, červený po propadnutí. Chybějící datum je označené jako nevyplněné. Kliknutí na štítek v detailu otevře Připomínky. Stavy se obnovují i po změně dne v otevřené aplikaci. Kontrola: `node tests/stk.cjs` (Playwright a Edge).
+
 U servisu zvolte **Neuvedeno / Nezaplaceno / Částečně zaplaceno / Zaplaceno**. Částečná úhrada eviduje souhrnnou již přijatou částku v Kč; nejde o bankovní napojení ani historii jednotlivých plateb. Stav a doplatek jsou vidět v historii i na protokolu. Starší záznamy zůstávají bez uvedeného stavu a nejsou započítané jako dluh. Při zvýšení ceny již zaplaceného servisu se zachová původní uhrazená částka; snížení ceny pod úhradu vyžaduje ruční vyřešení přeplatku.
 
 Klienti jsou součástí settings.clients v existujícím zabezpečeném payloadu a zálohách. Vazba vozidla je clientId, úhrada servisu settlement. Nevyžaduje se změna databázové struktury. Synchronizace slučuje různé klienty podle ID, změnu stejného klienta chrání konfliktem. Import Připojit chybějící zachová současné karty se stejným ID.
