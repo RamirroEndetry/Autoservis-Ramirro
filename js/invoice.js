@@ -30,7 +30,7 @@ const InvoiceParser = {
   },
   parse(text) {
     const rows = [];
-    let total = null;
+    let total = null, netTotal = null;
     let pending = null;
     let inTable = false;
     const compact = s => this.norm(s).replace(/\s/g, '');
@@ -47,8 +47,16 @@ const InvoiceParser = {
       // Dates and reference numbers must never be interpreted as decimal prices.
       const priceLine = line.replace(/\b\d{1,2}\s*\.\s*\d{1,2}\s*\.\s*\d{2,4}\b/g, m => ' '.repeat(m.length));
       const values = Array.from(priceLine.matchAll(amount));
+      if (/^(celkembezdph|celkemnetto)/.test(key)) {
+        if (values.length) netTotal = this.money(values[values.length - 1][0]);
+        inTable = false; pending = null; continue;
+      }
       if (/^(celkem(?::|$)|celkemkuhrade|castkakuhrade|celkemvcetnedph|celkemsdph|celkovacastka)/.test(key)) {
         if (values.length) total = this.money(values[values.length - 1][0]);
+        if (structured && values.length === 3) {
+          const [net, tax, gross] = values.map(v => this.money(v[0]));
+          if (Math.abs(Math.round((net + tax) * 100) - Math.round(gross * 100)) <= 2) netTotal = net;
+        }
         inTable = false; pending = null; continue;
       }
       if (/^(dan%|zakladnisazba|snizenasazba|rekapitulace|soucet|zakladdane)/.test(key)) {
@@ -72,7 +80,7 @@ const InvoiceParser = {
           if (!Number.isFinite(gross) || Math.abs(Math.round((net + tax) * 100) - Math.round(gross * 100)) > 2) continue;
           // Payment/collection instructions printed as zero-value merchandise.
           if (gross === 0 && /^(nva|osobniodber|hotove|platba)/.test(compact(code))) continue;
-          pending = { label: code + ' · ' + quantity[1] + ' ' + quantity[2], price: gross };
+          pending = { label: code + ' · ' + quantity[1] + ' ' + quantity[2], price: gross, net, gross };
           rows.push(pending);
         } else if (pending && line && /[a-zA-ZÀ-ž]{3}/.test(line) && !values.length && !/^[\s_\-=]+$/.test(line)) {
           // Suppliers put the human-readable description directly below the SKU.
@@ -100,7 +108,7 @@ const InvoiceParser = {
       const price = this.money(last[0]);
       if (Number.isFinite(price)) rows.push({ label, price });
     }
-    return { rows, total, foreign, structured };
+    return { rows, total, netTotal, foreign, structured };
   }
 };
 
@@ -108,22 +116,28 @@ const InvoiceImport = {
   generation: 0,
   rows: [],
   fileName: '',
+  priceMode: 'gross',
   init() {
     this.el = id => document.getElementById('invoice-' + id);
     this.el('file').addEventListener('change', () => this.load(this.el('file').files[0]));
     this.el('discard').addEventListener('click', () => this.reset());
     this.el('add-row').addEventListener('click', () => { this.rows.push({ label: '', price: 0 }); this.render(); });
     this.el('apply').addEventListener('click', () => this.apply());
+    this.el('price-mode').addEventListener('change', () => this.setPriceMode(this.el('price-mode').value));
   },
   reset() {
     this.generation++;
     this.rows = [];
+    this.total = null;
+    this.netTotal = null;
+    this.priceMode = 'gross';
     if (!this.el) return;
     this.el('file').value = '';
     this.el('file').disabled = false;
     this.el('review').hidden = true;
     this.el('status').textContent = '';
     this.el('text').textContent = '';
+    this.el('price-mode').value = 'gross';
   },
   async script(url) {
     await new Promise((resolve, reject) => {
@@ -193,13 +207,14 @@ const InvoiceImport = {
       this.el('text').textContent = text || 'Žádný čitelný text.';
       this.fileName = file.name;
       this.total = result.total;
+      this.netTotal = result.netTotal;
       this.foreign = result.foreign;
       this.rows = result.rows;
       this.el('warning').textContent = result.foreign
         ? 'Doklad obsahuje cizí měnu. Import do Kč je zablokován; převod kurzem není podporován.'
         : result.structured
-          ? 'Načteny ceny Brutto za celé množství včetně DPH. Údaje o cenách před slevou a způsobu platby se nepřidávají jako díly. Zkontrolujte položky a součet proti faktuře.'
-          : 'Rozložení tabulky nebylo rozpoznáno. Návrh cen je orientační — zkontrolujte cenu za celé množství včetně DPH. Chybějící položky doplňte a nesprávné odeberte.';
+          ? 'Načteny částky Netto a Brutto za celé množství po slevě. Vyberte, které ceny přidat. Zkontrolujte položky a součet proti faktuře.'
+          : 'Rozložení tabulky nebylo rozpoznáno. Návrh cen s DPH je orientační. Ceny bez DPH doplňte ručně podle faktury; sazba DPH se neodhaduje.';
       this.el('review').hidden = false;
       this.render();
       status(this.rows.length ? 'Načteno ' + this.rows.length + ' položek z „' + file.name + '“. Zkontrolujte návrh níže.' : 'Položky se nepodařilo spolehlivě rozpoznat. Můžete je doplnit podle textu níže nebo nahrát čitelnější soubor.');
@@ -209,7 +224,20 @@ const InvoiceImport = {
       if (current()) this.el('file').disabled = false;
     }
   },
+  setPriceMode(mode) {
+    if (!['net', 'gross'].includes(mode) || mode === this.priceMode) return;
+    for (const row of this.rows) {
+      if (!row.prices) row.prices = { gross: row.gross ?? (this.priceMode === 'gross' ? row.price : NaN), net: row.net ?? NaN };
+      row.prices[this.priceMode] = row.price;
+      row.price = row.prices[mode];
+    }
+    this.priceMode = mode;
+    this.render();
+  },
   render() {
+    const basis = this.priceMode === 'net' ? 'bez DPH' : 's DPH';
+    this.el('price-mode').value = this.priceMode;
+    this.el('price-hint').textContent = 'U každé položky: název a množství · cena za celý řádek v Kč ' + basis + '. Chybějící cenu doplňte podle faktury.';
     const container = this.el('rows');
     container.replaceChildren();
     this.rows.forEach((row, index) => {
@@ -217,8 +245,9 @@ const InvoiceImport = {
       const label = document.createElement('input'); label.className = 'form-control'; label.value = row.label;
       label.setAttribute('aria-label', 'Název a množství položky ' + (index + 1));
       label.addEventListener('input', () => { row.label = label.value; this.summary(); });
-      const price = document.createElement('input'); price.className = 'form-control'; price.type = 'number'; price.step = '0.01'; price.value = row.price;
-      price.setAttribute('aria-label', 'Cena celkem včetně DPH v Kč, položka ' + (index + 1));
+      const price = document.createElement('input'); price.className = 'form-control'; price.type = 'number'; price.step = '0.01'; price.value = Number.isFinite(row.price) ? row.price : '';
+      price.placeholder = 'Doplňte cenu';
+      price.setAttribute('aria-label', 'Cena celkem ' + basis + ' v Kč, položka ' + (index + 1));
       price.addEventListener('input', () => { row.price = price.value === '' ? NaN : Number(price.value); this.summary(); });
       const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'btn btn-ghost'; remove.textContent = 'Odebrat';
       remove.addEventListener('click', () => { this.rows.splice(index, 1); this.render(); });
@@ -228,16 +257,17 @@ const InvoiceImport = {
   },
   summary() {
     const sum = this.rows.reduce((s, r) => s + (Number.isFinite(r.price) ? Math.round(r.price * 100) : 0), 0) / 100;
-    const mismatch = this.total !== null && Math.abs(sum - this.total) > 0.01;
-    this.el('total').textContent = 'Součet položek: ' + Utils.kc(sum) + (this.total !== null ? ' · Na dokladu: ' + Utils.kc(this.total) : '') + (mismatch ? ' — Částky se liší. Zkontrolujte DPH, dopravu, slevy a chybějící položky.' : '');
+    const reference = this.priceMode === 'net' ? this.netTotal : this.total;
+    const basis = this.priceMode === 'net' ? 'bez DPH' : 's DPH';
+    const mismatch = Number.isFinite(reference) && Math.abs(sum - reference) > 0.01;
+    const missing = this.rows.some(r => !Number.isFinite(r.price));
+    this.el('total').textContent = 'Součet položek ' + basis + ': ' + Utils.kc(sum) + (Number.isFinite(reference) ? ' · Na dokladu ' + basis + ': ' + Utils.kc(reference) : '') + (missing ? ' — Doplňte chybějící ceny.' : mismatch ? ' — Částky se liší. Zkontrolujte dopravu, slevy a chybějící položky.' : '');
     this.el('apply').disabled = this.foreign || !this.rows.length || this.rows.some(r => !r.label.trim() || !Number.isFinite(r.price));
   },
   apply() {
     this.summary();
     if (this.el('apply').disabled || !App.vehicle) return;
     for (const row of this.rows) App.customItems.push({ id: VehicleStorage.newId('custom'), label: row.label.trim(), price: Math.round(row.price * 100) / 100 });
-    const notes = document.getElementById('srv-notes');
-    notes.value = [notes.value.trim(), 'Díly z faktury: ' + this.fileName].filter(Boolean).join('\n');
     document.getElementById('auto-sum').checked = true;
     App.renderCustomItems(); App.afterSelectionChange();
     this.reset();

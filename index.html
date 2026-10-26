@@ -212,7 +212,14 @@
             <p id="invoice-status" role="status" aria-live="polite"></p>
             <div id="invoice-review" hidden>
               <p id="invoice-warning" class="muted-note"></p>
-              <p class="field-hint">U každé položky: název a množství · cena za celý řádek v Kč včetně DPH.</p>
+              <div class="field">
+                <label for="invoice-price-mode">Ceny přidat do záznamu</label>
+                <select id="invoice-price-mode" class="form-control">
+                  <option value="gross">S DPH (Brutto)</option>
+                  <option value="net">Bez DPH (Netto)</option>
+                </select>
+              </div>
+              <p id="invoice-price-hint" class="field-hint">U každé položky: název a množství · cena za celý řádek v Kč s DPH.</p>
               <div id="invoice-rows"></div>
               <p id="invoice-total"></p>
               <div class="panel-tools">

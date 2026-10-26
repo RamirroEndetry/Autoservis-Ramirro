@@ -30,6 +30,7 @@ jobs:
           node tests/catalogue.cjs
           node tests/ford-catalogue.cjs
           node tests/engine-catalogue.cjs
+          node tests/tax-import.cjs
           node tests/payment.cjs
           node tests/clients-settlement.cjs
       - name: Build public files only
