@@ -777,6 +777,14 @@ class App {
       Utils.esc(status.title) + '</strong><small>' + Utils.esc(status.detail) + '</small></span>';
   }
 
+  static stkCountdown(vehicle) {
+    const days = Utils.daysUntil(vehicle?.stkUntil);
+    if (days === null) return 'STK · datum není vyplněné';
+    if (days < 0) return 'STK · propadlá ' + Utils.relative(days);
+    if (days === 0) return 'STK · končí dnes';
+    return 'STK · ' + Utils.relative(days);
+  }
+
   static renderStkStatus() {
     const badge = document.getElementById('hero-stk');
     badge.className = 'stk-status stk-' + this.stkStatus(this.vehicle).state;
@@ -1873,7 +1881,7 @@ class App {
             "<strong>" + Utils.esc(name.trim()) + "</strong>" +
             "<span>" + Utils.esc(v.engineName || "") + "</span>" +
             '<span class="pill pill-soft">' + VehicleOwnership.label(v) + '</span>' +
-            '<div class="stk-status stk-' + this.stkStatus(v).state + '">' + this.stkMarkup(v) + '</div>' +
+            '<span class="stk-countdown stk-' + this.stkStatus(v).state + '">' + Utils.esc(this.stkCountdown(v)) + '</span>' +
             (ownership === 'client' ? '<span>' + Utils.esc(ClientBook.name(v)) + '</span>' : '') +
             "<span class=\"garage-meta\">" +
               (v.year || "—") + " · " + Utils.esc(v.spz || "bez SPZ") + " · " +

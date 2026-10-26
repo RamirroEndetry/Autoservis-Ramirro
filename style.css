@@ -1006,7 +1006,6 @@ fieldset { border: none; }
 /* Honda's wide wing-and-wordmark needs more horizontal space to remain legible. */
 .brand-card img[src$="/honda.svg"] { width: 96px; max-width: 100%; }
 .hero-logo:has(img[src$="/honda.svg"]) { width: 118px; padding: 8px; }
-.garage-logo:has(img[src$="/honda.svg"]) { width: 86px; padding: 6px; }
 /* Original monochrome artwork in white for the dark application surfaces. */
 :is(.hero-logo, .garage-logo, .brand-card) img[src$="/audi.svg"],
 :is(.hero-logo, .garage-logo, .brand-card) img[src$="/vw.svg"] { filter: invert(1); }
@@ -1032,14 +1031,14 @@ fieldset { border: none; }
 .garage-card.active { border-color: var(--accent); background: var(--accent-soft); }
 
 .garage-logo {
-  width: 46px;
+  width: 86px;
   height: 46px;
   flex: none;
   display: grid;
   place-items: center;
   background: rgba(255, 255, 255, 0.05);
   border-radius: var(--r-sm);
-  padding: 8px;
+  padding: 6px;
   font-size: 19px;
   color: var(--accent);
 }
@@ -1065,9 +1064,10 @@ button.stk-status { cursor: pointer; }
 .stk-ok { --stk-color: #76e0a2; --stk-bg: #123127; }
 .stk-soon { --stk-color: #ffd179; --stk-bg: #392b13; }
 .stk-overdue { --stk-color: #ff9d9d; --stk-bg: #401c25; }
-.garage-info .stk-status { align-self: flex-start; padding: 8px 10px; margin: 8px 0; }
-.garage-info .stk-status span { color: inherit; white-space: normal; overflow: visible; }
-.garage-info .stk-status strong { font-size: 14px; }
+.garage-info .stk-countdown {
+  color: var(--stk-color, var(--text-soft)); font-size: 12.3px;
+  font-weight: 700; white-space: normal; margin: 6px 0;
+}
 .garage-actions { display: flex; align-items: center; gap: 7px; flex: none; }
 
 /* Záloha */
