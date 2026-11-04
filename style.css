@@ -1250,3 +1250,27 @@ button.stk-status { cursor: pointer; }
 .client-card h4, .client-card p { margin:0 0 10px; }
 .client-vehicles { display:flex; gap:8px; flex-wrap:wrap; margin:10px 0; }
 .settlement-label { display:block; font-size:.75rem; font-weight:400; margin-top:5px; }
+
+/* Lending diary */
+.loan-modal { width: min(1180px, 96vw); max-width:1180px; }
+.loan-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:20px 0; }
+.loan-summary > div { padding:18px; background:var(--panel-2); border:1px solid var(--border); border-radius:var(--r-md); }
+.loan-summary span,.loan-summary strong { display:block; }
+.loan-summary span { color:var(--text-soft); font-size:12px; }
+.loan-summary strong { font-family:var(--font-head); font-size:25px; margin-top:6px; }
+.loan-layout { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(260px,1fr); gap:24px; }
+.loan-layout label { display:block; font-size:13px; color:var(--text-soft); }
+.loan-layout .form-control { margin:5px 0 12px; width:100%; }
+.loan-card { padding:20px; border:1px solid var(--border); background:var(--panel); border-radius:var(--r-md); margin:16px 0; overflow-wrap:anywhere; }
+.loan-card-heading,.loan-payment { display:flex; justify-content:space-between; gap:12px; align-items:center; }
+.loan-card h4 { font-size:20px; }.loan-card p { margin:7px 0; color:var(--text-soft); }
+.loan-overdue { color:var(--danger); background:var(--danger-soft); }
+.loan-balance { display:block; margin:15px 0 8px; font-size:24px; color:var(--text); }
+.loan-balance small { font-size:12px; font-weight:400; color:var(--text-soft); }
+.loan-actions { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; }
+.loan-note { white-space:pre-wrap; }.loan-payment { padding:12px 0; border-bottom:1px solid var(--border); }
+.loan-card details { margin:16px 0; }.loan-card summary { cursor:pointer; color:var(--text-soft); }
+.loan-payment-form { border-top:1px solid var(--border); padding-top:14px; margin-top:14px; }
+.loan-payment-form h5 { font-size:14px; margin-bottom:12px; }.loan-empty { padding:36px 12px; color:var(--text-soft); }
+@media(max-width:760px) { .loan-layout { grid-template-columns:1fr; }.loan-layout > form { grid-row:1; }.loan-summary { grid-template-columns:1fr; gap:8px; }.loan-summary > div { padding:12px; }.loan-summary strong { font-size:22px; }.loan-card-heading { align-items:flex-start; } }
+@media(max-width:760px) { .header-inner { flex-wrap:wrap; }.header-actions { flex-wrap:wrap; width:100%; }.loan-layout > *, .loan-card-heading > * { min-width:0; } }

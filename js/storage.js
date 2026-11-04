@@ -327,6 +327,8 @@ class VehicleStorage {
       return { ok: false, message: "V souboru chybí seznam vozidel – nevypadá jako záloha této aplikace." };
     }
 
+    try { GarageSync.validate({vehicles: parsed.vehicles, services: parsed.services || [], settings: parsed.settings || {}}); }
+    catch (error) { return {ok:false, message:error.message}; }
     const incomingVehicles = parsed.vehicles.filter(v => v && v.id);
     const incomingServices = Array.isArray(parsed.services) ? parsed.services.filter(s => s && s.id) : [];
 
@@ -348,10 +350,12 @@ class VehicleStorage {
 
     if (parsed.settings) {
       const settings = {...parsed.settings};
-      if (mode === 'merge' && Array.isArray(settings.clients)) {
-        const clients = this.getSettings().clients || [];
-        const ids = new Set(clients.map(c => c.id));
-        settings.clients = [...clients,...settings.clients.filter(c => !ids.has(c.id))];
+      for (const key of ['clients', 'loans']) {
+        if (mode === 'merge') {
+          const current = this.getSettings()[key] || [];
+          const ids = new Set(current.map(c => c.id));
+          settings[key] = [...current,...(settings[key] || []).filter(c => !ids.has(c.id))];
+        } else settings[key] = settings[key] || [];
       }
       this.saveSettings(settings);
     }

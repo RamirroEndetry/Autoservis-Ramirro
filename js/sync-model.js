@@ -16,6 +16,20 @@ const GarageSync = {
         ids.add(row.id);
       }
     }
+    if (data.settings.loans !== undefined) {
+      if (!Array.isArray(data.settings.loans)) throw new Error('Neplatný deník půjček.');
+      const ids = new Set();
+      for (const loan of data.settings.loans) {
+        if (!loan || typeof loan.id !== 'string' || !loan.id || ids.has(loan.id) || typeof loan.name !== 'string' || !loan.name.trim() || !Number.isSafeInteger(loan.amountCents) || loan.amountCents <= 0 || !Array.isArray(loan.payments)) throw new Error('Neplatná půjčka.');
+        ids.add(loan.id);
+        const payments = new Set(); let paid = 0;
+        for (const p of loan.payments) {
+          if (!p || typeof p.id !== 'string' || !p.id || payments.has(p.id) || !Number.isSafeInteger(p.amountCents) || p.amountCents <= 0) throw new Error('Neplatná splátka.');
+          payments.add(p.id); paid += p.amountCents;
+        }
+        if (paid > loan.amountCents) throw new Error('Splátky převyšují půjčku.');
+      }
+    }
     const vehicles = new Set(data.vehicles.map(v => v.id));
     if (data.settings.clients !== undefined) {
       if (!Array.isArray(data.settings.clients)) throw new Error('Neplatný seznam klientů.');
@@ -44,12 +58,12 @@ const GarageSync = {
       }
     }
     for (const key of new Set([base,local,remote].flatMap(d => Object.keys(d.settings)))) {
-      if (key === 'clients') {
-        const maps = [base,local,remote].map(d => new Map((d.settings.clients || []).map(c => [c.id,c])));
-        result.settings.clients = [];
+      if (key === 'clients' || key === 'loans') {
+        const maps = [base,local,remote].map(d => new Map((d.settings[key] || []).map(c => [c.id,c])));
+        result.settings[key] = [];
         for (const id of new Set(maps.flatMap(m => [...m.keys()]))) {
-          const client = pick(...maps.map(m => m.get(id)),'clients:' + id);
-          if (client !== undefined) result.settings.clients.push(client);
+          const client = pick(...maps.map(m => m.get(id)),key + ':' + id);
+          if (client !== undefined) result.settings[key].push(client);
         }
         continue;
       }

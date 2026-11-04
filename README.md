@@ -85,3 +85,15 @@ Ford má samostatný evropský katalog v `js/ford-data.js`. Rozsah, omezení a o
 Soukromé regresní testy faktur a jejich podklady zůstávají pouze v původní místní pracovní složce a nejsou součástí veřejného repozitáře.
 
 Pro prohlížečové testy je potřeba Playwright a nainstalovaný Microsoft Edge. Cestu ke sdíleným Node balíčkům lze nastavit přes `NODE_PATH`.
+
+## Deník půjček
+
+V horní liště otevřete **Deník půjček**. Každá půjčka má vlastní jméno a kontakt dlužníka, označení, částku v Kč, datum půjčení, volitelnou splatnost, variabilní symbol a soukromou poznámku. Stejné osobě můžete založit více půjček. Přehled ukazuje zbývající dluh, částky po splatnosti a přijaté peníze; nabízí hledání a filtr otevřených, splacených nebo všech půjček.
+
+Přijaté splátky zapisujte jednotlivě s datem, způsobem a poznámkou. Evidence pracuje v celých haléřích a odmítá přeplatek. Chybnou splátku lze po potvrzení zrušit; půjčku včetně historie lze po potvrzení smazat. Splacené půjčky se zachovávají ve filtru Splacené.
+
+**PDF / QR platba** otevře tisknutelný přehled půjčky a splátek. QR obsahuje pouze aktuální doplatek na stávající účet 824880004/5500 a případný ručně zadaný VS. Po úplném splacení QR zmizí. Interní poznámky půjčky a splátek nejsou v dokumentu. PDF lze stáhnout stejným způsobem jako servisní protokol; bez CDN knihovny použijte tisk do PDF. Platby se neověřují v bance automaticky.
+
+Půjčky jsou součástí settings.loans, soukromé synchronizace a JSON záloh. Změny různých půjček se slučují podle ID; souběžná změna stejné půjčky včetně splátek vyvolá konflikt. Není potřeba měnit databázové schéma. Filtr po splatnosti je upozornění při otevření deníku, neposílá zprávy ani push oznámení.
+
+Kontrola: `node tests/loans.cjs` (Playwright + Edge) ověřuje formulář, haléře, splátky, nezávislé dekódování QR, soukromé poznámky, zálohy, konflikty synchronizace a mobilní šířku.

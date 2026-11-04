@@ -650,6 +650,7 @@ class App {
     this.bindBackup();
     this.bindSettings();
     ClientBook.init();
+    LoanBook.init();
     Background.start();
     this.render();
     this.reminderDay = Utils.today();
@@ -673,6 +674,7 @@ class App {
 
     document.getElementById("garage-btn-label").textContent = "Garáž (" + vehicles.length + ")";
     ClientBook.render();
+    LoanBook.render();
 
     const hasVehicle = !!this.vehicle;
     document.getElementById("no-vehicle-state").hidden = hasVehicle;
