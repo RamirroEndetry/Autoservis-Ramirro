@@ -112,6 +112,99 @@ const InvoiceParser = {
   }
 };
 
+/*
+ * Přiřazení položek faktury k úkonům servisní tabulky.
+ * Pravidla jsou záměrně opatrná: co jednoznačně nepatří k žádnému úkonu
+ * (kryt motoru, víčko chladicí kapaliny, šrouby karoserie…), se ignoruje.
+ * Uživatel může každé přiřazení v náhledu změnit.
+ */
+const InvoiceMatcher = {
+  FRONT: /predn|vpred|front/,
+  REAR: /zadn|vzad|rear/,
+  // Části, které jen obsahují název kapaliny nebo dílu, ale nejsou samotným úkonem.
+  ACCESSORY: /\b(vick|uzaver|zatk|nadob|nadrz|expanzn|hadic|cidl|snimac|spinac|kryt|drzak|konzol|pouzdr|sroubek|klips|spon)/,
+  RULES: [
+    // Pořadí je důležité: specifičtější pravidla dřív než obecná.
+    { ids: ['wheel_valves'], any: /ventil\w* (pneu|kol|tpms)|\btpms\b|senzor tlaku (v )?pneu/ },
+    { ids: ['trs_dsg'], any: /\bdsg\b|s.?tronic|olej\w* (do )?automat/, also: /olej|filtr|servis/ },
+    { ids: ['trs_haldex'], any: /haldex/ },
+    { ids: ['ch_fork_oil'], any: /olej\w* (do )?(predni )?vidlic|vidlicov\w* olej|fork oil|gufer/ },
+    { ids: ['sc_gear_oil', 'mc_final_drive', 'trs_gear_oil'], any: /prevodov\w* olej|olej\w* (do )?(koncov\w* )?prevod|olej\w* (do )?kardan|\b(75|80|85)w-?(80|85|90|140)\b|\batf\b|gear oil/, none: /dsg|automat|haldex/ },
+    { ids: ['oil_engine'], any: /motorov\w* olej|olej\w* motor|\b(0|5|10|15|20)w-?(16|20|30|40|50|60)\b|olejov\w* filtr|filtr\w* olej|vymena oleje|\bjaso\b|vypou?st\w* sroub|sroub\w* vypou?st|zatk\w* (olej|vypou?st)|tesn\w* (krouz|podlozk)\w* (vypou?st|zatk)|engine oil|oil filter|longlife/,
+      none: /prevod|vidlic|dsg|haldex|kardan|brzd|hydraul|servo|retez|\b2t\b|dvoutakt|cerpad|chladic\w* olej|\bvik|tesneni (hlavy|vik)|cidl|snimac|spinac|tlak/ },
+    { ids: ['oil_cabin_filter'], any: /kabin\w* filtr|pylov\w* filtr|filtr\w* (kabin|pyl|interier|klimat)|klimatizac\w* filtr|cabin filter/ },
+    { ids: ['oil_air_filter'], any: /vzduch\w* filtr|filtr\w* vzduch|air filter/, none: /kabin|pyl|interier|klimat/ },
+    { ids: ['oil_fuel_filter', 'oil_fuel_filter_moto'], any: /palivov\w* filtr|filtr\w* (paliv|naft|benzin)|naftov\w* filtr|fuel filter/ },
+    { ids: ['brake_pads_front', 'brake_pads_rear'], axle: true, any: /brzd\w* desti|desticky? brzd|brzd\w* oblozeni|brake pad/, none: /cidl|snimac|ukazatel|opotreb/ },
+    { ids: ['brake_discs_front', 'brake_discs_rear'], axle: true, any: /brzd\w* kotou|kotouc\w* brzd|brake disc/ },
+    { ids: ['brake_shoes_rear'], any: /brzd\w* celist|celisti brzd/ },
+    { ids: ['brake_fluid'], any: /brzd\w* kapalin|\bdot ?(3|4|5|5[.,]1)\b|brake fluid/ },
+    { ids: ['brake_hoses'], any: /brzd\w* hadic|hadic\w* brzd|brzd\w* potrubi/ },
+    { ids: ['brake_caliper'], any: /brzd\w* trmen|trmen\w* brzd|oprav\w* sad\w* trmen/ },
+    { ids: ['brake_parking'], any: /lank\w* (ruc|parkov)|(rucni|parkovaci) brzd/ },
+    { ids: ['tyre_front', 'tyre_rear'], axle: true, any: /pneumatik|\bpneu\b|\btyre\b|\btire\b/, none: /ventil|tpms|lepen|oprav/ },
+    { ids: ['wheel_bearing'], any: /lozisk\w* (predn\w* |zadn\w* )?kol|nab\w* kol/ },
+    { ids: ['eng_glow_plugs'], any: /zhavic\w* sv/ },
+    { ids: ['eng_spark_plugs'], any: /zapalovac\w* sv|svick\w* zapal|svick|spark plug/, none: /zhavic|kabel|koncov|klic|civk/ },
+    { ids: ['eng_coils'], any: /zapalovac\w* civk|civk\w* zapal|kabel\w* zapal|ignition coil/ },
+    { ids: ['eng_timing_chain'], any: /rozvod\w* retez|retez\w* rozvod|timing chain/ },
+    { ids: ['eng_timing_belt'], any: /rozvod\w* (remen|sad)|sad\w* rozvod|remen\w* rozvod|timing belt/ },
+    { ids: ['eng_aux_belt'], any: /klinov\w* remen|drazkov\w* remen|remen\w* (klinov|drazk|alternator|prislusenstv)|\bpk ?remen/ },
+    { ids: ['eng_water_pump'], any: /vodni (pump|cerpad)|termostat|water pump/ },
+    { ids: ['eng_coolant'], any: /chladic\w* kapalin|nemrzouc|antifreeze|\bg ?1[123]\b|\bg ?4[08]\b|coolant/ },
+    { ids: ['eng_injectors'], any: /vstrikov/ },
+    { ids: ['eng_turbo'], any: /turbo/ },
+    { ids: ['trs_clutch', 'mc_clutch'], any: /spojkov\w* (sad|lamel|kotou)|sad\w* spojk|lamel\w* spojk|vysouvac/ },
+    { ids: ['sc_clutch_shoes'], any: /spojkov\w* celist|celist\w* spojk|zvon\w* spojk/ },
+    { ids: ['trs_dmf'], any: /setrvacnik/ },
+    { ids: ['trs_driveshaft'], any: /poloos|homokinet/ },
+    { ids: ['mc_chain_kit'], any: /retezov\w* sad|sad\w* retez|chain kit/ },
+    { ids: ['mc_sprocket_front'], any: /pastor|predni rozet|rozet\w* predn/ },
+    { ids: ['mc_sprocket_rear'], any: /zadni rozet|rozet\w* zadn/ },
+    { ids: ['sc_belt'], any: /remen\w* variator|variator\w* remen|hnaci remen|drive belt/ },
+    { ids: ['sc_rollers'], any: /valeck|variator\w* valec|vodit\w* variator/ },
+    { ids: ['ch_shocks_front', 'ch_shocks_rear'], axle: true, any: /tlumic\w* (perov|predn|zadn|podvoz)|(predni|zadni) tlumic|shock absorber/, none: /vyfuk/ },
+    { ids: ['ch_tie_rods'], any: /tahl\w* rizen|hlav\w* (tahl|rizen)/ },
+    { ids: ['ch_ball_joints'], any: /kulov\w* cep|rameno/ },
+    { ids: ['ch_stabilizer'], any: /stabiliz/ },
+    { ids: ['el_battery'], any: /akumulator|autobateri|baterie/, none: /klic|ovladac|cr ?20|knofl/ },
+    { ids: ['el_bulbs'], any: /zarovk|\bh(1|3|4|7|11)\b|\bw5w\b|\bp21w\b|\bpy21w\b/ },
+    { ids: ['bd_wipers'], any: /sterac|stertka|wiper/, none: /motor|ramen/ },
+    { ids: ['ex_lambda'], any: /lambda/ },
+    { ids: ['ex_catalyst'], any: /katalyz/ },
+    { ids: ['ex_dpf'], any: /\bdpf\b|filtr\w* pevn\w* cast/ },
+    { ids: ['ex_egr'], any: /\begr\b/ },
+    { ids: ['bd_ac'], any: /chladiv|r ?134 ?a|r ?1234 ?yf|plneni klimatiz/ },
+    { ids: ['ex_exhaust'], any: /tlumic\w* vyfuk|vyfuk/ }
+  ],
+  norm(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); },
+  /**
+   * Vrátí id úkonu, nebo null (položka se ignoruje).
+   * applies(id) říká, zda úkon existuje pro daný druh stroje.
+   */
+  match(label, kind, applies) {
+    const text = this.norm(label);
+    const ok = id => (applies ? applies(id) : true);
+    for (const rule of this.RULES) {
+      if (!rule.any.test(text)) continue;
+      if (rule.none && rule.none.test(text)) continue;
+      if (rule.also && !rule.also.test(text)) continue;
+      // Víčko, hadice nebo čidlo k dílu nejsou výměnou dílu samotného.
+      const drainPlug = rule.ids[0] === 'oil_engine' && /vypou?st/.test(text);
+      if (this.ACCESSORY.test(text) && !drainPlug && !/brake_hoses|wheel_valves/.test(rule.ids[0])) return null;
+      if (rule.axle) {
+        const front = this.FRONT.test(text), rear = this.REAR.test(text);
+        if (front && !rear) return ok(rule.ids[0]) ? rule.ids[0] : null;
+        if (rear && !front) return ok(rule.ids[1]) ? rule.ids[1] : null;
+        // Náprava není uvedená – raději nic nehádat, uživatel ji vybere v náhledu.
+        return null;
+      }
+      return rule.ids.find(ok) || null;
+    }
+    return null;
+  }
+};
+
 const InvoiceImport = {
   generation: 0,
   rows: [],
@@ -121,7 +214,7 @@ const InvoiceImport = {
     this.el = id => document.getElementById('invoice-' + id);
     this.el('file').addEventListener('change', () => this.load(this.el('file').files[0]));
     this.el('discard').addEventListener('click', () => this.reset());
-    this.el('add-row').addEventListener('click', () => { this.rows.push({ label: '', price: 0 }); this.render(); });
+    this.el('add-row').addEventListener('click', () => { this.rows.push({ label: '', price: 0, target: 'custom' }); this.render(); });
     this.el('apply').addEventListener('click', () => this.apply());
     this.el('price-mode').addEventListener('change', () => this.setPriceMode(this.el('price-mode').value));
   },
@@ -210,6 +303,7 @@ const InvoiceImport = {
       this.netTotal = result.netTotal;
       this.foreign = result.foreign;
       this.rows = result.rows;
+      this.assignTargets();
       this.el('warning').textContent = result.foreign
         ? 'Doklad obsahuje cizí měnu. Import do Kč je zablokován; převod kurzem není podporován.'
         : result.structured
@@ -224,6 +318,30 @@ const InvoiceImport = {
       if (current()) this.el('file').disabled = false;
     }
   },
+  kind() { return VehicleCatalog.kindOf(App.vehicle); },
+  /** Navrhne úkon pro každou položku; nerozpoznané díly se ignorují. */
+  assignTargets() {
+    const kind = this.kind();
+    const applies = id => { const item = VehicleCatalog.findItem(id); return !!item && item.applies.indexOf(kind) >= 0; };
+    for (const row of this.rows) row.target = InvoiceMatcher.match(row.label, kind, applies) || 'ignore';
+  },
+  targetSelect(row, index) {
+    const select = document.createElement('select');
+    select.className = 'form-control invoice-target';
+    select.setAttribute('aria-label', 'Kam zapsat položku ' + (index + 1));
+    const add = (parent, value, text) => { const o = document.createElement('option'); o.value = value; o.textContent = text; parent.append(o); };
+    add(select, 'ignore', 'Nepřidávat (ignorovat)');
+    add(select, 'custom', 'Vlastní úkon');
+    for (const cat of VehicleCatalog.categoriesFor(this.kind())) {
+      const group = document.createElement('optgroup'); group.label = cat.name;
+      cat.items.forEach(item => add(group, item.id, item.label));
+      select.append(group);
+    }
+    select.value = row.target || 'ignore';
+    if (select.value !== (row.target || 'ignore')) select.value = 'ignore';
+    select.addEventListener('change', () => { row.target = select.value; this.render(); });
+    return select;
+  },
   setPriceMode(mode) {
     if (!['net', 'gross'].includes(mode) || mode === this.priceMode) return;
     for (const row of this.rows) {
@@ -237,11 +355,14 @@ const InvoiceImport = {
   render() {
     const basis = this.priceMode === 'net' ? 'bez DPH' : 's DPH';
     this.el('price-mode').value = this.priceMode;
-    this.el('price-hint').textContent = 'U každé položky: název a množství · cena za celý řádek v Kč ' + basis + '. Chybějící cenu doplňte podle faktury.';
+    this.el('price-hint').textContent = 'U každé položky: název a množství · kam ji zapsat · cena za celý řádek v Kč ' + basis + '. ' +
+      'Rozpoznané díly jsou předvybrané k úkonům (olej a filtr se sečtou do jednoho), ostatní se nepřidají. Výběr můžete změnit.';
     const container = this.el('rows');
     container.replaceChildren();
     this.rows.forEach((row, index) => {
-      const wrap = document.createElement('div'); wrap.className = 'invoice-row';
+      const target = row.target || 'ignore';
+      const wrap = document.createElement('div');
+      wrap.className = 'invoice-row' + (target === 'ignore' ? ' is-ignored' : target === 'custom' ? '' : ' is-task');
       const label = document.createElement('input'); label.className = 'form-control'; label.value = row.label;
       label.setAttribute('aria-label', 'Název a množství položky ' + (index + 1));
       label.addEventListener('input', () => { row.label = label.value; this.summary(); });
@@ -251,7 +372,7 @@ const InvoiceImport = {
       price.addEventListener('input', () => { row.price = price.value === '' ? NaN : Number(price.value); this.summary(); });
       const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'btn btn-ghost'; remove.textContent = 'Odebrat';
       remove.addEventListener('click', () => { this.rows.splice(index, 1); this.render(); });
-      wrap.append(label, price, remove); container.append(wrap);
+      wrap.append(label, this.targetSelect(row, index), price, remove); container.append(wrap);
     });
     this.summary();
   },
@@ -260,18 +381,43 @@ const InvoiceImport = {
     const reference = this.priceMode === 'net' ? this.netTotal : this.total;
     const basis = this.priceMode === 'net' ? 'bez DPH' : 's DPH';
     const mismatch = Number.isFinite(reference) && Math.abs(sum - reference) > 0.01;
-    const missing = this.rows.some(r => !Number.isFinite(r.price));
-    this.el('total').textContent = 'Součet položek ' + basis + ': ' + Utils.kc(sum) + (Number.isFinite(reference) ? ' · Na dokladu ' + basis + ': ' + Utils.kc(reference) : '') + (missing ? ' — Doplňte chybějící ceny.' : mismatch ? ' — Částky se liší. Zkontrolujte dopravu, slevy a chybějící položky.' : '');
-    this.el('apply').disabled = this.foreign || !this.rows.length || this.rows.some(r => !r.label.trim() || !Number.isFinite(r.price));
+    const used = this.rows.filter(r => (r.target || 'ignore') !== 'ignore');
+    const missing = used.some(r => !Number.isFinite(r.price));
+    const usedSum = used.reduce((s, r) => s + (Number.isFinite(r.price) ? Math.round(r.price * 100) : 0), 0) / 100;
+    const ignored = this.rows.length - used.length;
+    this.el('total').textContent = 'Součet položek ' + basis + ': ' + Utils.kc(sum) + (Number.isFinite(reference) ? ' · Na dokladu ' + basis + ': ' + Utils.kc(reference) : '') +
+      ' · Do záznamu: ' + Utils.kc(usedSum) + (ignored ? ' (ignorováno ' + ignored + ')' : '') +
+      (missing ? ' — Doplňte chybějící ceny.' : mismatch ? ' — Částky se liší. Zkontrolujte dopravu, slevy a chybějící položky.' : '');
+    this.el('apply').disabled = this.foreign || !used.length || used.some(r => !r.label.trim() || !Number.isFinite(r.price));
   },
   apply() {
     this.summary();
     if (this.el('apply').disabled || !App.vehicle) return;
-    for (const row of this.rows) App.customItems.push({ id: VehicleStorage.newId('custom'), label: row.label.trim(), price: Math.round(row.price * 100) / 100 });
+    const counts = { task: 0, custom: 0, ignore: 0 };
+    const tasks = new Set();
+    for (const row of this.rows) {
+      const target = row.target || 'ignore';
+      const price = Math.round(row.price * 100) / 100;
+      if (target === 'ignore') { counts.ignore++; continue; }
+      if (target === 'custom') {
+        App.customItems.push({ id: VehicleStorage.newId('custom'), label: row.label.trim(), price });
+        counts.custom++;
+        continue;
+      }
+      // Více řádků jednoho úkonu (olej + filtr + těsnění) se sečte do jeho ceny.
+      const previous = App.selected.has(target) ? App.selected.get(target) : null;
+      App.selected.set(target, Math.round(((Number(previous) || 0) + price) * 100) / 100);
+      tasks.add(target);
+      counts.task++;
+    }
     document.getElementById('auto-sum').checked = true;
-    App.renderCustomItems(); App.afterSelectionChange();
+    App.renderAccordion(); App.renderCustomItems(); App.afterSelectionChange();
     this.reset();
-    this.el('status').textContent = 'Díly i ceny jsou přidané. Doplňte datum a tachometr, potom uložte servisní záznam.';
+    const parts = [];
+    if (tasks.size) parts.push('zaškrtnuto ' + Utils.plural(tasks.size, 'úkon', 'úkony', 'úkonů') + ' z ' + Utils.plural(counts.task, 'položky', 'položek', 'položek'));
+    if (counts.custom) parts.push(Utils.plural(counts.custom, 'vlastní úkon', 'vlastní úkony', 'vlastních úkonů'));
+    if (counts.ignore) parts.push('ignorováno ' + Utils.plural(counts.ignore, 'položka', 'položky', 'položek'));
+    this.el('status').textContent = 'Hotovo: ' + parts.join(', ') + '. Doplňte datum a tachometr, potom uložte servisní záznam.';
   }
 };
 

@@ -1462,7 +1462,11 @@ button.stk-status { cursor: pointer; }
   .panel, .cluster, .record { border-color: #ccc; background: #fff; box-shadow: none; }
 }
 /* Invoice review */
-.invoice-row { display: grid; grid-template-columns: minmax(0, 1fr) 150px auto; gap: 10px; margin: 12px 0; }
+.invoice-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(180px, 1fr) 130px auto; gap: 10px; margin: 12px 0; align-items: center; }
+.invoice-row.is-ignored > input { opacity: 0.5; }
+.invoice-row.is-task .invoice-target { border-color: rgba(95, 212, 154, 0.55); color: var(--ok); }
+.invoice-row.is-ignored .invoice-target { color: var(--text-dim); }
+#invoice-assign { margin-top: 4px; }
 .invoice-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; padding: 12px; }
 #invoice-panel details { margin-top: 18px; }
 #invoice-panel input[type="file"] { margin-top: 8px; }
@@ -1470,7 +1474,7 @@ button.stk-status { cursor: pointer; }
 #invoice-warning { line-height: 1.6; }
 @media (max-width: 600px) {
   .invoice-row { grid-template-columns: minmax(0, 1fr) auto; }
-  .invoice-row > input:first-child { grid-column: 1 / -1; }
+  .invoice-row > input:first-child, .invoice-row > .invoice-target { grid-column: 1 / -1; }
 }
 /* Authentication and cloud status stay usable on narrow screens. */
 .auth-gate { min-height:100vh; display:grid; place-items:center; padding:24px; background:radial-gradient(ellipse at top,#1A2350,#050818 65%); }
