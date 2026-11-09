@@ -248,6 +248,8 @@ const Background = {
   layers: [],
   sprites: [],
   nebula: null,
+  planet: null,
+  dust: null,
   accent: "",
 
   pointer: { x: 0, y: 0, tx: 0, ty: 0 },
@@ -354,6 +356,7 @@ const Background = {
     if (!this.ready) return;
     if (this.readAccent()) {
       this.buildNebula();
+      this.buildPlanet();
       if (!this.enabled) this.drawFrame(0);
     }
   },
@@ -403,6 +406,8 @@ const Background = {
     this.buildSprites();
     this.buildStars();
     this.buildNebula();
+    this.buildDust();
+    this.buildPlanet();
     this.meteor = null;
     this.nextMeteor = 4 + Math.random() * 6;
   },
@@ -442,7 +447,9 @@ const Background = {
           a: cfg.alpha[0] + Math.random() * (cfg.alpha[1] - cfg.alpha[0]),
           sprite: Math.floor(Math.random() * this.sprites.length),
           phase: Math.random() * Math.PI * 2,
-          speed: cfg.twinkle[0] + Math.random() * (cfg.twinkle[1] - cfg.twinkle[0])
+          speed: cfg.twinkle[0] + Math.random() * (cfg.twinkle[1] - cfg.twinkle[0]),
+          // Jen pár nejbližších hvězd dostane jemné difrakční paprsky.
+          spike: cfg.parallax > 0.5 && Math.random() < 0.09
         });
       }
       return { cfg: cfg, stars: stars };
@@ -493,6 +500,104 @@ const Background = {
     this.nebula = c;
   },
 
+  /**
+   * Mezihvězdný prach – tisíce drobných teček podél Mléčné dráhy.
+   * Kreslí se jednou; při běhu stojí jen jedno drawImage.
+   */
+  buildDust() {
+    const c = document.createElement("canvas");
+    c.width = Math.round(this.w * this.dpr);
+    c.height = Math.round(this.h * this.dpr);
+    const g = c.getContext("2d");
+    g.scale(this.dpr, this.dpr);
+
+    const count = Math.round(Math.min(2600, (this.w * this.h) / 700));
+    const angle = -0.42;
+    const cos = Math.cos(angle), sin = Math.sin(angle);
+    for (let i = 0; i < count; i++) {
+      // Body jsou nahuštěné k ose pruhu (součet náhod = zvonová křivka).
+      const along = (Math.random() - 0.5) * this.w * 1.6;
+      const across = ((Math.random() + Math.random() + Math.random()) / 3 - 0.5) * this.h * 0.55;
+      const x = this.w * 0.5 + along * cos - across * sin;
+      const y = this.h * 0.45 + along * sin + across * cos;
+      g.fillStyle = Math.random() < 0.8 ? "rgba(200, 214, 255, 1)" : "rgba(255, 220, 190, 1)";
+      g.globalAlpha = 0.08 + Math.random() * 0.22;
+      g.fillRect(x, y, Math.random() < 0.9 ? 0.8 : 1.4, Math.random() < 0.9 ? 0.8 : 1.4);
+    }
+    this.dust = c;
+  },
+
+  /**
+   * Okraj planety vycházející v pravém dolním rohu. Atmosféra září barvou
+   * značky smíchanou s modrou, světlo dopadá zleva shora.
+   */
+  buildPlanet() {
+    if (!this.w || !this.h) return;
+    const c = document.createElement("canvas");
+    c.width = Math.round(this.w * this.dpr);
+    c.height = Math.round(this.h * this.dpr);
+    const g = c.getContext("2d");
+    g.scale(this.dpr, this.dpr);
+
+    const R = Math.max(this.w, this.h) * 0.62;
+    const cx = this.w * 0.92;
+    const cy = this.h + R * 0.58;
+    const accent = this.rgb(this.accent);
+    const rim = [
+      Math.round(accent[0] * 0.45 + 110 * 0.55),
+      Math.round(accent[1] * 0.45 + 140 * 0.55),
+      Math.round(accent[2] * 0.45 + 255 * 0.55)
+    ].join(",");
+
+    // Vnější záře atmosféry
+    const halo = g.createRadialGradient(cx, cy, R * 0.96, cx, cy, R * 1.16);
+    halo.addColorStop(0, "rgba(" + rim + ",0.30)");
+    halo.addColorStop(0.35, "rgba(" + rim + ",0.10)");
+    halo.addColorStop(1, "rgba(" + rim + ",0)");
+    g.fillStyle = halo;
+    g.fillRect(0, 0, this.w, this.h);
+
+    // Tělo planety – tmavé, nasvícené zleva shora
+    g.save();
+    g.beginPath();
+    g.arc(cx, cy, R, 0, Math.PI * 2);
+    g.clip();
+    const body = g.createRadialGradient(cx - R * 0.45, cy - R * 0.7, R * 0.1, cx, cy, R * 1.05);
+    body.addColorStop(0, "#1B2550");
+    body.addColorStop(0.45, "#0A1030");
+    body.addColorStop(1, "#03050F");
+    g.fillStyle = body;
+    g.fillRect(0, 0, this.w, this.h);
+
+    // Jemné pásy oblačnosti
+    for (let i = 0; i < 7; i++) {
+      const y = cy - R + R * (0.05 + i * 0.045);
+      g.fillStyle = "rgba(" + rim + "," + (0.025 + (i % 2) * 0.02) + ")";
+      g.beginPath();
+      g.ellipse(cx - R * 0.15, y, R * 1.1, R * 0.012 + i * 1.5, -0.08, 0, Math.PI * 2);
+      g.fill();
+    }
+
+    // Stín na odvrácené straně
+    const night = g.createLinearGradient(cx - R, cy - R, cx + R * 0.4, cy);
+    night.addColorStop(0, "rgba(0,0,0,0)");
+    night.addColorStop(1, "rgba(0,0,0,0.55)");
+    g.fillStyle = night;
+    g.fillRect(0, 0, this.w, this.h);
+    g.restore();
+
+    // Ostrý srpek světla na okraji
+    g.beginPath();
+    g.arc(cx, cy, R, Math.PI * 1.08, Math.PI * 1.62);
+    g.strokeStyle = "rgba(" + rim + ",0.85)";
+    g.lineWidth = 1.6;
+    g.shadowColor = "rgba(" + rim + ",0.9)";
+    g.shadowBlur = 18;
+    g.stroke();
+
+    this.planet = c;
+  },
+
   /* ---------------------------- Vykreslení ---------------------------- */
 
   loop(time) {
@@ -518,7 +623,18 @@ const Background = {
     this.pointer.x += (this.pointer.tx - this.pointer.x) * Math.min(1, dt * 2.5);
     this.pointer.y += (this.pointer.ty - this.pointer.y) * Math.min(1, dt * 2.5);
 
+    if (this.dust) {
+      ctx.globalAlpha = 1;
+      ctx.drawImage(this.dust, -this.pointer.x * 4, -this.pointer.y * 4, this.w, this.h);
+    }
+
     this.drawStars(dt);
+
+    if (this.planet) {
+      ctx.globalAlpha = 1;
+      ctx.drawImage(this.planet, -this.pointer.x * 6, -this.pointer.y * 4, this.w, this.h);
+    }
+
     this.updateMeteor(dt);
 
     ctx.globalAlpha = 1;
@@ -554,6 +670,17 @@ const Background = {
           s.y + oy - size / 2,
           size, size
         );
+
+        if (s.spike) {
+          const px = s.x + ox, py = s.y + oy, len = s.r * 9;
+          ctx.globalAlpha = alpha * 0.35;
+          ctx.strokeStyle = "rgba(220, 232, 255, 1)";
+          ctx.lineWidth = 0.7;
+          ctx.beginPath();
+          ctx.moveTo(px - len, py); ctx.lineTo(px + len, py);
+          ctx.moveTo(px, py - len); ctx.lineTo(px, py + len);
+          ctx.stroke();
+        }
       }
     }
   },
@@ -681,6 +808,8 @@ class App {
     document.getElementById("vehicle-hero").hidden = !hasVehicle;
     document.getElementById("workspace").hidden = !hasVehicle;
     document.getElementById("alert-strip").hidden = !hasVehicle;
+    document.getElementById("due-panel").hidden = !hasVehicle;
+    this.renderSwitcher(vehicles);
 
     if (!hasVehicle) {
       document.body.setAttribute("data-brand", "audi");
@@ -739,7 +868,6 @@ class App {
     document.getElementById("hero-engine-code").textContent = v.engineCode || "—";
 
     const totalSpend = this.records.reduce((sum, r) => sum + Utils.money(r.totalPrice), 0);
-    document.getElementById("stat-mileage").textContent = Utils.km(v.mileage);
     document.getElementById("stat-spend").textContent = Utils.kc(totalSpend);
     document.getElementById("stat-count").textContent = String(this.records.length);
     document.getElementById("stat-last").textContent = this.records.length
@@ -747,6 +875,135 @@ class App {
       : "—";
 
     document.getElementById("tab-history-count").textContent = String(this.records.length);
+
+    this.renderOdometer(v.mileage);
+    this.renderGauges();
+  }
+
+  /* ------------------------- Přístrojový štít ------------------------- */
+
+  /** Válečkový tachometr – každá číslice ve vlastním okénku. */
+  static renderOdometer(mileage) {
+    const km = Math.max(0, Math.round(Utils.num(mileage)));
+    const digits = String(km).padStart(6, "0").split("");
+    const el = document.getElementById("odometer");
+    el.setAttribute("aria-label", "Tachometr " + Utils.km(km));
+    el.innerHTML = digits.map((d, i) =>
+      '<span class="odo-digit' + (i < digits.length - String(km).length ? " odo-lead" : "") + '">' + d + "</span>"
+    ).join("") + '<span class="odo-unit">km</span>';
+  }
+
+  /**
+   * Budík jako půlkruh: fraction 1 = plná rezerva, 0 = termín je tady.
+   * Ručička ukazuje stejně jako palivoměr – vpravo plno, vlevo prázdno.
+   */
+  static gaugeMarkup(opts) {
+    const frac = Math.max(0, Math.min(1, opts.fraction));
+    const arc = 251.33;
+    const angle = -90 + 180 * frac;
+    const ticks = [0, 0.25, 0.5, 0.75, 1].map(t => {
+      const a = Math.PI * (1 - t);
+      const x1 = 100 + Math.cos(a) * 96, y1 = 110 - Math.sin(a) * 96;
+      const x2 = 100 + Math.cos(a) * 88, y2 = 110 - Math.sin(a) * 88;
+      return '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '"/>';
+    }).join("");
+    return '<svg class="gauge-dial gauge-' + opts.status + '" viewBox="0 0 200 122" aria-hidden="true">' +
+        '<g class="gauge-ticks">' + ticks + "</g>" +
+        '<path class="gauge-track" d="M20 110 A80 80 0 0 1 180 110"/>' +
+        '<path class="gauge-fill" d="M20 110 A80 80 0 0 1 180 110" stroke-dasharray="' + arc + '" stroke-dashoffset="' + (arc * (1 - frac)).toFixed(1) + '"/>' +
+        '<g class="gauge-needle" style="transform:rotate(' + angle.toFixed(1) + 'deg)"><line x1="100" y1="110" x2="100" y2="38"/></g>' +
+        '<circle class="gauge-hub" cx="100" cy="110" r="7"/>' +
+      "</svg>" +
+      '<strong class="gauge-value">' + Utils.esc(opts.value) + "</strong>" +
+      '<span class="gauge-label">' + Utils.esc(opts.label) + "</span>";
+  }
+
+  static renderGauges() {
+    const reminders = this.buildReminders();
+
+    // Levý budík: nejbližší servis podle kilometrů
+    const byKm = reminders.filter(r => r.kmInterval).sort((a, b) => (a.kmLeft / a.kmInterval) - (b.kmLeft / b.kmInterval))[0];
+    const kmEl = document.getElementById("gauge-km");
+    kmEl.innerHTML = byKm
+      ? this.gaugeMarkup({
+          fraction: byKm.kmLeft / byKm.kmInterval,
+          status: byKm.kmLeft < 0 ? "overdue" : (byKm.kmLeft < byKm.kmInterval * 0.15 ? "soon" : "ok"),
+          value: byKm.kmLeft >= 0 ? Utils.km(byKm.kmLeft) : "−" + Utils.km(-byKm.kmLeft),
+          label: (byKm.kmLeft >= 0 ? "do: " : "překročeno: ") + byKm.label.toLowerCase()
+        })
+      : this.gaugeMarkup({ fraction: 0, status: "empty", value: "—", label: "zapište první servis" });
+
+    // Pravý budík: nejbližší termín podle data (servis nebo doklad)
+    const byDate = reminders.filter(r => r.daysInterval && r !== byKm).sort((a, b) => (a.daysLeft / a.daysInterval) - (b.daysLeft / b.daysInterval))[0];
+    const timeEl = document.getElementById("gauge-time");
+    timeEl.innerHTML = byDate
+      ? this.gaugeMarkup({
+          fraction: byDate.daysLeft / byDate.daysInterval,
+          status: byDate.status === "unknown" ? "ok" : byDate.status,
+          value: this.shortDuration(byDate.daysLeft),
+          label: (byDate.daysLeft >= 0 ? "do: " : "po termínu: ") + (/^[A-ZÁ-Ž]{2,}$/.test(byDate.label) ? byDate.label : byDate.label.toLowerCase())
+        })
+      : this.gaugeMarkup({ fraction: 0, status: "empty", value: "—", label: "doplňte datum STK" });
+  }
+
+  /** 400 -> "13 měsíců", 20 -> "20 dní", -12 -> "12 dní" */
+  static shortDuration(days) {
+    const d = Math.abs(days);
+    if (d < 60) return Utils.plural(d, "den", "dny", "dní");
+    const months = Math.round(d / 30.44);
+    if (months < 24) return Utils.plural(months, "měsíc", "měsíce", "měsíců");
+    return Utils.plural(Math.round(d / 365.25), "rok", "roky", "let");
+  }
+
+  /** Stav stroje pro přepínač, bez přepnutí aktivního stroje. */
+  static statusOf(vehicle) {
+    const keepVehicle = this.vehicle;
+    const keepRecords = this.records;
+    this.vehicle = vehicle;
+    this.records = VehicleStorage.getServicesForVehicle(vehicle.id);
+    const list = this.buildReminders();
+    this.vehicle = keepVehicle;
+    this.records = keepRecords;
+    if (list.some(r => r.status === "overdue")) return "overdue";
+    if (list.some(r => r.status === "soon")) return "soon";
+    return "ok";
+  }
+
+  static renderSwitcher(vehicles) {
+    const nav = document.getElementById("vehicle-switcher");
+    const activeVehicleId = this.vehicle ? this.vehicle.id : null;
+    vehicles = vehicles.filter(v => v.id === activeVehicleId ||
+      typeof VehicleOwnership === "undefined" || VehicleOwnership.get(v) !== "client");
+    nav.hidden = vehicles.length < 2;
+    if (vehicles.length < 2) { nav.innerHTML = ""; return; }
+
+    const activeId = this.vehicle ? this.vehicle.id : null;
+    const statusText = { overdue: "něco je po termínu", soon: "blíží se termín", ok: "v pořádku" };
+    nav.innerHTML = vehicles.map(v => {
+      const brand = VehicleCatalog.brand(v.brand);
+      const kind = VehicleCatalog.kindOf(v);
+      const status = this.statusOf(v);
+      const active = v.id === activeId;
+      return '<button type="button" class="switch-item' + (active ? " active" : "") + '" data-switch="' + Utils.esc(v.id) + '"' +
+          ' aria-pressed="' + active + '" data-brand="' + Utils.esc(v.brand || "") + '">' +
+          '<span class="switch-logo">' +
+            (brand && brand.logo ? '<img src="' + brand.logo + '" alt="" width="22" height="22">' : '<i class="fa-solid ' + (kind === "car" ? "fa-car" : "fa-motorcycle") + '" aria-hidden="true"></i>') +
+          "</span>" +
+          '<span class="switch-text"><strong>' + Utils.esc(this.vehicleName(v)) + "</strong>" +
+            "<small>" + Utils.km(v.mileage) + "</small></span>" +
+          '<span class="switch-dot dot-' + status + '" title="' + statusText[status] + '"><span class="sr-only">' + statusText[status] + "</span></span>" +
+        "</button>";
+    }).join("");
+
+    nav.querySelectorAll("[data-switch]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        if (btn.dataset.switch === activeId) return;
+        if (typeof CloudGarage !== "undefined" && CloudGarage.draft && !confirm("Opustit rozpracovaný formulář a přepnout vozidlo?")) return;
+        VehicleStorage.setActiveVehicleId(btn.dataset.switch);
+        this.resetForm();
+        this.render();
+      });
+    });
   }
 
   /* --------------------------- Upozornění ----------------------------- */
@@ -812,7 +1069,9 @@ class App {
         label: doc.label.replace(" platná do", "").replace(" platné do", "").replace(" do", ""),
         detail: Utils.fmtDate(value) + " (" + Utils.relative(days) + ")",
         status: days < 0 ? "overdue" : (days <= 30 ? "soon" : "ok"),
-        sort: days
+        sort: days,
+        daysLeft: days,
+        daysInterval: doc.key === "stkUntil" || doc.key === "emissionUntil" ? 730 : 365
       });
     });
 
@@ -844,6 +1103,8 @@ class App {
           if (remaining < 0) worst = "overdue";
           else if (remaining < plan.km * 0.15) worst = "soon";
           sortValue = Math.min(sortValue, Math.round(remaining / 40));
+          entry.kmLeft = remaining;
+          entry.kmInterval = plan.km;
         }
 
         if (plan.months) {
@@ -855,6 +1116,8 @@ class App {
             if (days < 0) worst = "overdue";
             else if (days <= 45 && worst !== "overdue") worst = "soon";
             sortValue = Math.min(sortValue, days);
+            entry.daysLeft = days;
+            entry.daysInterval = Math.round(plan.months * 30.44);
           }
         }
 
@@ -907,7 +1170,72 @@ class App {
     );
   }
 
+  /** Kontrolky ve štítu a panel "Na řadě" vedle záložek. */
+  static renderDue() {
+    const reminders = this.buildReminders();
+    const urgent = reminders.filter(r => r.status === "overdue" || r.status === "soon");
+    const kind = VehicleCatalog.kindOf(this.vehicle);
+    const missingDocs = VehicleCatalog.documentsFor(kind).filter(d => !this.vehicle[d.key]);
+
+    // Kontrolky
+    const lamps = urgent.slice(0, 3).map(r =>
+      '<button type="button" class="lamp lamp-' + r.status + '" data-goto-plan>' +
+        '<i class="lamp-light" aria-hidden="true"></i>' + Utils.esc(r.label) + "</button>");
+    if (urgent.length > 3) {
+      lamps.push('<button type="button" class="lamp lamp-soon" data-goto-plan><i class="lamp-light" aria-hidden="true"></i>+' + (urgent.length - 3) + " další</button>");
+    }
+    if (missingDocs.length) {
+      lamps.push('<button type="button" class="lamp lamp-info" data-action="edit-vehicle">' +
+        '<i class="lamp-light" aria-hidden="true"></i>Doplnit ' +
+        Utils.esc(missingDocs.map(d => ({ stkUntil: "STK", emissionUntil: "emise", insuranceUntil: "pojištění", vignetteUntil: "dálniční známku" }[d.key] || d.label)).join(", ")) + "</button>");
+    }
+    if (!lamps.length) {
+      lamps.push('<span class="lamp lamp-ok"><i class="lamp-light" aria-hidden="true"></i>Vše v pořádku</span>');
+    }
+    document.getElementById("cluster-lamps").innerHTML = lamps.join("");
+
+    // Na řadě: nejdřív to, co má termín, pak souhrn toho, co v knížce chybí
+    const known = reminders.filter(r => r.status !== "unknown").slice(0, 5);
+    const unknown = reminders.filter(r => r.status === "unknown");
+    const valueOf = r => {
+      if (r.kmLeft !== undefined && (r.daysLeft === undefined || r.kmLeft / r.kmInterval <= r.daysLeft / r.daysInterval)) {
+        return r.kmLeft >= 0 ? "za " + Utils.km(r.kmLeft) : "o " + Utils.km(-r.kmLeft) + " později";
+      }
+      return r.daysLeft >= 0 ? "za " + this.shortDuration(r.daysLeft) : "před " + this.shortDuration(r.daysLeft);
+    };
+
+    let html = known.map(r => {
+      const frac = r.kmInterval !== undefined && (r.daysInterval === undefined || r.kmLeft / r.kmInterval <= r.daysLeft / r.daysInterval)
+        ? r.kmLeft / r.kmInterval
+        : (r.daysInterval ? r.daysLeft / r.daysInterval : 1);
+      return '<div class="due-row due-' + r.status + '">' +
+        '<span class="due-icon"><i class="fa-solid ' + r.icon + '" aria-hidden="true"></i></span>' +
+        '<span class="due-name">' + Utils.esc(r.label) + "</span>" +
+        '<span class="due-value">' + Utils.esc(valueOf(r)) + "</span>" +
+        '<span class="due-bar" aria-hidden="true"><i style="width:' + (Math.max(0, Math.min(1, frac)) * 100).toFixed(0) + '%"></i></span>' +
+      "</div>";
+    }).join("");
+
+    if (unknown.length) {
+      html += '<p class="due-unknown"><strong>Bez záznamu (' + unknown.length + "):</strong> " +
+        Utils.esc(unknown.map(r => r.label).join(", ")) + "</p>";
+    }
+    if (!html) html = '<p class="muted-note">Pro tento stroj zatím nejsou žádné termíny.</p>';
+    document.getElementById("due-list").innerHTML = html;
+
+    Utils.$$("#cluster-lamps [data-goto-plan], #due-panel [data-goto-plan]").forEach(btn => {
+      btn.onclick = () => {
+        this.switchTab("plan");
+        document.getElementById("workspace").scrollIntoView({ behavior: "smooth", block: "start" });
+      };
+    });
+    Utils.$$('#cluster-lamps [data-action="edit-vehicle"]').forEach(btn => {
+      btn.onclick = () => this.openVehicleModal(this.vehicle);
+    });
+  }
+
   static renderAlerts() {
+    this.renderDue();
     const strip = document.getElementById("alert-strip");
     const urgent = [
       ...this.buildReminders().filter(r => r.type === "service" && (r.status === "overdue" || r.status === "soon")),
@@ -1156,7 +1484,7 @@ class App {
     const summary = [
       { label: "Celkem", value: Utils.kc(total), icon: "fa-coins" },
       { label: "Průměr na záznam", value: Utils.kc(this.records.length ? total / this.records.length : 0), icon: "fa-receipt" },
-      { label: "Náklady na km", value: (perKm ? perKm.toFixed(2).replace(".", ",") : "0") + " Kč/km", icon: "fa-road" },
+      { label: "Náklady na km", value: perKm ? perKm.toFixed(2).replace(".", ",") + " Kč/km" : "—", icon: "fa-road" },
       { label: "Odhad na rok", value: perYear ? Utils.kc(perYear) : "—", icon: "fa-calendar" }
     ];
 

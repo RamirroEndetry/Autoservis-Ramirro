@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Digitální servisní kniha pro auta a motocykly – evidence úkonů, nákladů a připomínek.">
   <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#050818">
   <title>Servisní kniha – auta a motocykly</title>
 
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
@@ -49,6 +50,7 @@
     <button id="cloud-logout" class="btn btn-ghost btn-sm">Odhlásit</button>
   </aside>
 
+  <a class="skip-link" href="#main">Přeskočit na obsah</a>
   <canvas id="bg-canvas" aria-hidden="true"></canvas>
 
   <!-- ================================ HLAVIČKA ============================ -->
@@ -83,7 +85,7 @@
     </div>
   </header>
 
-  <main class="page">
+  <main class="page" id="main">
 
     <!-- ============================== PRÁZDNÝ STAV ======================== -->
     <section id="no-vehicle-state" class="empty-hero" hidden>
@@ -103,31 +105,22 @@
       </div>
     </section>
 
-    <!-- ================================ HERO ============================== -->
-    <section id="vehicle-hero" class="hero" hidden>
-      <div class="hero-main">
-        <div class="hero-identity">
+    <!-- ========================== PŘEPÍNAČ STROJŮ ========================= -->
+    <nav id="vehicle-switcher" class="switcher" aria-label="Přepnout stroj" hidden></nav>
+
+    <!-- ========================= PŘÍSTROJOVÝ ŠTÍT ========================= -->
+    <section id="vehicle-hero" class="cluster" aria-labelledby="hero-title" hidden>
+      <div class="cluster-top">
+        <div class="cluster-identity">
           <div id="hero-logo" class="hero-logo"><i class="fa-solid fa-car" aria-hidden="true"></i></div>
-          <div>
-            <p class="hero-eyebrow"><span id="hero-kind">Automobil</span> <span id="hero-year-badge" class="pill">—</span></p>
+          <div class="cluster-name">
+            <p class="cluster-kind"><span id="hero-kind">Automobil</span> · <span id="hero-year-badge">—</span></p>
             <h2 id="hero-title">—</h2>
             <p id="hero-engine" class="hero-engine">—</p>
             <p id="hero-client" class="hero-engine">Bez přiřazeného klienta</p>
             <button type="button" id="hero-stk" class="stk-status" title="Otevřít termíny a upravit datum STK"></button>
-            <div class="hero-meta">
-              <span class="meta-chip" title="Registrační značka">
-                <i class="fa-solid fa-id-card" aria-hidden="true"></i> <strong id="hero-spz">—</strong>
-              </span>
-              <span class="meta-chip" title="VIN nebo číslo rámu">
-                <i class="fa-solid fa-barcode" aria-hidden="true"></i> <strong id="hero-vin">—</strong>
-              </span>
-              <span class="meta-chip" title="Kód motoru">
-                <i class="fa-solid fa-microchip" aria-hidden="true"></i> <strong id="hero-engine-code">—</strong>
-              </span>
-            </div>
           </div>
         </div>
-
         <div class="hero-actions">
           <button type="button" id="edit-vehicle-btn" class="btn btn-ghost btn-sm">
             <i class="fa-solid fa-pen" aria-hidden="true"></i> Upravit stroj
@@ -138,29 +131,33 @@
         </div>
       </div>
 
-      <div class="hero-stats">
-        <div class="stat">
-          <span class="stat-label">Tachometr</span>
-          <strong id="stat-mileage" class="stat-value">0 km</strong>
+      <div class="cluster-dials">
+        <div id="gauge-km" class="gauge"></div>
+
+        <div class="cluster-center">
+          <div id="odometer" class="odometer" role="img" aria-label="Tachometr"></div>
+          <div class="cluster-meta">
+            <span title="Registrační značka"><i class="fa-solid fa-id-card" aria-hidden="true"></i> <strong id="hero-spz">—</strong></span>
+            <span title="VIN nebo číslo rámu"><i class="fa-solid fa-barcode" aria-hidden="true"></i> <strong id="hero-vin">—</strong></span>
+            <span title="Kód motoru"><i class="fa-solid fa-microchip" aria-hidden="true"></i> <strong id="hero-engine-code">—</strong></span>
+          </div>
+          <div id="cluster-lamps" class="lamps" aria-live="polite"></div>
         </div>
-        <div class="stat">
-          <span class="stat-label">Celkem za servis</span>
-          <strong id="stat-spend" class="stat-value">0 Kč</strong>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Počet záznamů</span>
-          <strong id="stat-count" class="stat-value">0</strong>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Poslední servis</span>
-          <strong id="stat-last" class="stat-value">—</strong>
-        </div>
+
+        <div id="gauge-time" class="gauge"></div>
       </div>
+
+      <dl class="cluster-foot">
+        <div><dt>Za servis celkem</dt><dd id="stat-spend">0 Kč</dd></div>
+        <div><dt>Poslední servis</dt><dd id="stat-last">—</dd></div>
+        <div><dt>Záznamů v knížce</dt><dd id="stat-count">0</dd></div>
+      </dl>
     </section>
 
     <!-- ============================ UPOZORNĚNÍ ============================ -->
     <div id="alert-strip" class="alert-strip" hidden></div>
 
+    <div class="dash-grid">
     <!-- ============================== ZÁLOŽKY ============================= -->
     <div id="workspace" hidden>
       <div class="tabs" role="tablist" aria-label="Sekce aplikace">
@@ -424,6 +421,16 @@
           <div id="plan-list" class="plan-list"></div>
         </div>
       </section>
+    </div>
+
+    <!-- ============================== NA ŘADĚ ============================= -->
+    <aside id="due-panel" class="panel due-panel" aria-labelledby="due-title" hidden>
+      <div class="panel-head">
+        <h3 id="due-title"><i class="fa-solid fa-gauge-high" aria-hidden="true"></i> Na řadě</h3>
+        <button type="button" class="btn btn-ghost btn-xs" data-goto-plan>Celý plán</button>
+      </div>
+      <div id="due-list" class="due-list"></div>
+    </aside>
     </div>
   </main>
 
