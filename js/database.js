@@ -696,7 +696,7 @@ const SERVICE_CATEGORIES = [
    ========================================================================== */
 
 const MAINTENANCE_PLAN = [
-  { itemId: "oil_engine",          label: "Výměna oleje a olejového filtru", km: { car: 15000, motorcycle: 6000, scooter: 5000 }, months: 12 },
+  { itemId: "oil_engine",          label: "Výměna oleje a olejového filtru", km: { car: 10000, motorcycle: 6000, scooter: 5000 }, months: 12 },
   { itemId: "oil_air_filter",      label: "Vzduchový filtr",                 km: { car: 30000, motorcycle: 12000, scooter: 10000 }, months: 24 },
   { itemId: "oil_cabin_filter",    label: "Kabinový filtr",                  km: { car: 15000 }, months: 12 },
   { itemId: "brake_fluid",         label: "Brzdová kapalina",                km: null, months: 24 },
