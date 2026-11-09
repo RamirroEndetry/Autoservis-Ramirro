@@ -713,12 +713,13 @@ const MAINTENANCE_PLAN = [
   { itemId: "trs_dsg",             label: "Servis DSG",                      km: { car: 60000 }, months: null }
 ];
 
-/* Doklady s pevným datem platnosti – evidují se u vozidla. */
+/* Doklady s pevným datem platnosti – evidují se u vozidla.
+   months ... délka platnosti podle druhu stroje (motorky a skútry mají STK na 4 roky). */
 const DOCUMENT_FIELDS = [
-  { key: "stkUntil",       label: "STK platná do",       icon: "fa-clipboard-check", applies: ALL_KINDS },
-  { key: "emissionUntil",  label: "Emise platné do",     icon: "fa-smog",            applies: ALL_KINDS },
-  { key: "insuranceUntil", label: "Pojištění platné do", icon: "fa-shield-halved",   applies: ALL_KINDS },
-  { key: "vignetteUntil",  label: "Dálniční známka do",  icon: "fa-road",            applies: ["car"] }
+  { key: "stkUntil",       label: "STK platná do",       icon: "fa-clipboard-check", applies: ALL_KINDS, months: { car: 24, motorcycle: 48, scooter: 48 } },
+  { key: "emissionUntil",  label: "Emise platné do",     icon: "fa-smog",            applies: ALL_KINDS, months: { car: 24, motorcycle: 48, scooter: 48 } },
+  { key: "insuranceUntil", label: "Pojištění platné do", icon: "fa-shield-halved",   applies: ALL_KINDS, months: { car: 12, motorcycle: 12, scooter: 12 } },
+  { key: "vignetteUntil",  label: "Dálniční známka do",  icon: "fa-road",            applies: ["car"],   months: { car: 12 } }
 ];
 
 /* ==========================================================================

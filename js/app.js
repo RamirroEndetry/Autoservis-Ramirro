@@ -1071,7 +1071,7 @@ class App {
         status: days < 0 ? "overdue" : (days <= 30 ? "soon" : "ok"),
         sort: days,
         daysLeft: days,
-        daysInterval: doc.key === "stkUntil" || doc.key === "emissionUntil" ? 730 : 365
+        daysInterval: Math.round(((doc.months && doc.months[kind]) || 12) * 30.44)
       });
     });
 
