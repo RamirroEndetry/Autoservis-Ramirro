@@ -383,6 +383,8 @@ const VEHICLE_DB = {
     models: {
       xmax_250_2007: {
         name: "X-Max 250 (YP250R)", kind: "scooter", years: [2005, 2013],
+        // Podle servisní knížky majitele: olej po 3 000 km.
+        intervals: { oil_engine: { km: 3000 } },
         engines: [
           { name: "250 cm³ 4T jednoválec, 15,6 kW (G389E)", fuel: "petrol", oilSpec: "10W-40 4T JASO MA/MB", oilCapacity: "1,4 L (výměna 1,2 L)" }
         ]
@@ -867,15 +869,23 @@ const VehicleCatalog = {
     return LEGACY_ITEM_MAP[itemId] || itemId;
   },
 
-  /** Doporučené intervaly pro daný druh stroje. */
-  planFor(kind) {
+  /**
+   * Doporučené intervaly pro daný druh stroje. S vozidlem se použijí
+   * i intervaly konkrétního modelu (model.intervals), které mají přednost.
+   */
+  planFor(kind, vehicle) {
+    const model = vehicle ? this.model(vehicle.brand, vehicle.modelKey) : null;
+    const overrides = (model && model.intervals) || {};
     return MAINTENANCE_PLAN
-      .map(p => ({
-        itemId: p.itemId,
-        label: p.label,
-        km: p.km ? (p.km[kind] || null) : null,
-        months: p.months || null
-      }))
+      .map(p => {
+        const own = overrides[p.itemId] || {};
+        return {
+          itemId: p.itemId,
+          label: p.label,
+          km: own.km !== undefined ? own.km : (p.km ? (p.km[kind] || null) : null),
+          months: own.months !== undefined ? own.months : (p.months || null)
+        };
+      })
       .filter(p => p.km || p.months)
       .filter(p => {
         const item = VehicleCatalog.findItem(p.itemId);

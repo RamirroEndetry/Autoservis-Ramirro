@@ -1076,7 +1076,7 @@ class App {
     });
 
     // 2) Servisní intervaly podle posledního provedení
-    VehicleCatalog.planFor(kind).forEach(plan => {
+    VehicleCatalog.planFor(kind, v).forEach(plan => {
       const last = this.findLastRecordWithItem(plan.itemId);
       const entry = {
         type: "service",
