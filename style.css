@@ -1593,7 +1593,9 @@ html { scrollbar-color: rgba(160, 178, 255, 0.28) transparent; scrollbar-width: 
 }
 
 /* Rámeček loga s obíhajícím světlem v barvě značky. */
-.cluster .hero-logo { position: relative; isolation: isolate; }
+.cluster .hero-logo { position: relative; isolation: isolate; grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
+/* Čtvercová loga (Škoda) se musí vejít na výšku – bez pevné buňky by rámeček přerostla. */
+.cluster .hero-logo img { width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: contain; }
 .cluster .hero-logo::before {
   content: "";
   position: absolute;
