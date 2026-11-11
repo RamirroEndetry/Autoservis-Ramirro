@@ -226,13 +226,16 @@ const UI = {
 /* ============================== POZADÍ ================================== */
 
 /**
- * Vesmírné pozadí.
+ * Vesmírné pozadí – pohled z nízké oběžné dráhy.
  *
- * Skládá se ze tří vrstev hvězd s různou hloubkou (bližší jsou větší, jasnější
- * a pohybují se rychleji), měkké mlhoviny v barvě aktivní značky a občasné
- * padající hvězdy. Hvězdy se kreslí z předem připravených obrázků, ne přes
- * shadowBlur – kreslení stovek rozmazaných kruhů po každém snímku by zbytečně
- * vytěžovalo procesor.
+ * Obloha se počítá procedurálně ze šumu: Mléčná dráha s temnými prachovými
+ * pásy a slabými emisními mlhovinami, desetitisíce hvězd s reálným rozložením
+ * jasu a barev (hustší v rovině galaxie) a okraj planety s atmosférou, nočními
+ * světly měst a Sluncem vycházejícím za obzorem.
+ *
+ * Všechno náročné se spočítá jednou do pomocných pláten. Každý snímek pak
+ * stojí jen několik drawImage a pár stovek jasných hvězd, takže animace
+ * (pomalá rotace oblohy, paralaxa, meteory, družice) nezatěžuje procesor.
  */
 const Background = {
   canvas: null,
@@ -245,34 +248,43 @@ const Background = {
   h: 0,
   dpr: 1,
 
-  layers: [],
+  seed: 0,
+  perm: null,
+  vals: null,
+
+  sky: null,        // { size, fields…, nebula, stars }
+  bright: [],       // jednotlivě kreslené jasné hvězdy (souřadnice oblohy)
   sprites: [],
-  nebula: null,
-  planet: null,
-  dust: null,
+  planet: null,     // { geometrie, texture, canvas }
+  flare: null,
   accent: "",
 
+  angle: 0,
+  time: 0,
   pointer: { x: 0, y: 0, tx: 0, ty: 0 },
+  scroll: 0,
+  scrollTarget: 0,
   meteor: null,
   nextMeteor: 0,
+  satellite: null,
+  nextSatellite: 0,
   lastTime: 0,
   sizeRetries: 0,
   sizeTimer: null,
   observer: null,
 
-  /* Vrstvy: podíl hvězd, velikost, jas, rychlost driftu, síla paralaxy */
-  LAYERS: [
-    { share: 0.56, size: [0.5, 1.0], alpha: [0.20, 0.45], drift: 1.6,  parallax: 0.10, twinkle: [0.25, 0.7] },
-    { share: 0.31, size: [0.9, 1.6], alpha: [0.35, 0.70], drift: 4.5,  parallax: 0.35, twinkle: [0.35, 1.0] },
-    { share: 0.13, size: [1.5, 2.6], alpha: [0.55, 0.95], drift: 9.0,  parallax: 0.80, twinkle: [0.45, 1.3] }
-  ],
+  /* Jedna otáčka oblohy za 50 minut – na okraji obrazovky asi 2 px/s. */
+  SPIN: (Math.PI * 2) / 3000,
+  BAND_ANGLE: -0.52,
 
+  /* Barvy hvězd podle spektrální třídy (O/B až M) a jejich zastoupení. */
   STAR_TINTS: [
-    [226, 240, 255],   // bílomodrá – nejčastější
-    [226, 240, 255],
-    [226, 240, 255],
-    [255, 226, 200],   // teplá
-    [198, 216, 255]    // studená
+    { rgb: [160, 184, 255], share: 0.07 },
+    { rgb: [196, 212, 255], share: 0.15 },
+    { rgb: [238, 242, 255], share: 0.25 },
+    { rgb: [255, 246, 232], share: 0.22 },
+    { rgb: [255, 220, 178], share: 0.20 },
+    { rgb: [255, 188, 132], share: 0.11 }
   ],
 
   /* ------------------------------ Řízení ------------------------------ */
@@ -292,6 +304,7 @@ const Background = {
     if (!this.ready) {
       this.ready = true;
       this.ctx = this.canvas.getContext("2d");
+      this.initNoise();
       this.readAccent();
       this.resize();
 
@@ -313,6 +326,19 @@ const Background = {
         if (!this.w || !this.h) return;
         this.pointer.tx = (e.clientX / this.w - 0.5) * 2;
         this.pointer.ty = (e.clientY / this.h - 0.5) * 2;
+
+        // Odlesk na skle přístrojového štítu sleduje kurzor.
+        const hero = document.getElementById("vehicle-hero");
+        if (hero && !hero.hidden && hero.offsetParent) {
+          const box = hero.getBoundingClientRect();
+          hero.style.setProperty("--mx", (e.clientX - box.left).toFixed(0) + "px");
+          hero.style.setProperty("--my", (e.clientY - box.top).toFixed(0) + "px");
+        }
+      }, { passive: true });
+
+      // Při posouvání stránky se planeta zvedá rychleji než hvězdy.
+      window.addEventListener("scroll", () => {
+        this.scrollTarget = window.scrollY || 0;
       }, { passive: true });
 
       document.addEventListener("visibilitychange", () => {
@@ -351,12 +377,12 @@ const Background = {
     }
   },
 
-  /** Mlhovina přebírá barvu aktivní značky; volá se po přepnutí stroje. */
+  /** Mlhoviny a atmosféra přebírají odstín aktivní značky; volá se po přepnutí stroje. */
   refreshAccent() {
     if (!this.ready) return;
     if (this.readAccent()) {
-      this.buildNebula();
-      this.buildPlanet();
+      this.paintNebula();
+      this.paintPlanet();
       if (!this.enabled) this.drawFrame(0);
     }
   },
@@ -374,6 +400,93 @@ const Background = {
     if (!m) return [224, 69, 59];
     const n = parseInt(m[1], 16);
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  },
+
+  /* ------------------------------- Šum -------------------------------- */
+
+  /** Obloha je při každém otevření jiná, ale změna velikosti okna ji nezmění. */
+  initNoise() {
+    this.seed = (Math.random() * 4294967296) >>> 0;
+    const rnd = this.rng(this.seed);
+    const perm = new Uint8Array(512);
+    const base = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) base[i] = i;
+    for (let i = 255; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      const t = base[i]; base[i] = base[j]; base[j] = t;
+    }
+    for (let i = 0; i < 512; i++) perm[i] = base[i & 255];
+    const vals = new Float32Array(256);
+    for (let i = 0; i < 256; i++) vals[i] = rnd();
+    this.perm = perm;
+    this.vals = vals;
+  },
+
+  rng(seed) {
+    let s = seed >>> 0;
+    return () => {
+      s = (s + 0x6D2B79F5) >>> 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  },
+
+  smooth(a, b, x) {
+    const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+    return t * t * (3 - 2 * t);
+  },
+
+  noise2(x, y) {
+    const xi = Math.floor(x), yi = Math.floor(y);
+    const xf = x - xi, yf = y - yi;
+    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const p = this.perm, r = this.vals;
+    const X = xi & 255, Y = yi & 255;
+    const a = p[X] + Y, b = p[X + 1] + Y;
+    const top = r[p[a]] + (r[p[b]] - r[p[a]]) * u;
+    const bot = r[p[a + 1]] + (r[p[b + 1]] - r[p[a + 1]]) * u;
+    return top + (bot - top) * v;
+  },
+
+  noise3(x, y, z) {
+    const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+    const xf = x - xi, yf = y - yi, zf = z - zi;
+    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf);
+    const p = this.perm, r = this.vals;
+    const X = xi & 255, Y = yi & 255, Z = zi & 255;
+    const A = p[X] + Y, B = p[X + 1] + Y;
+    const AA = p[A] + Z, AB = p[A + 1] + Z, BA = p[B] + Z, BB = p[B + 1] + Z;
+    const x00 = r[p[AA]] + (r[p[BA]] - r[p[AA]]) * u;
+    const x10 = r[p[AB]] + (r[p[BB]] - r[p[AB]]) * u;
+    const x01 = r[p[AA + 1]] + (r[p[BA + 1]] - r[p[AA + 1]]) * u;
+    const x11 = r[p[AB + 1]] + (r[p[BB + 1]] - r[p[AB + 1]]) * u;
+    const y0 = x00 + (x10 - x00) * v;
+    const y1 = x01 + (x11 - x01) * v;
+    return y0 + (y1 - y0) * w;
+  },
+
+  /** Součet oktáv šumu, výsledek 0–1. */
+  fbm2(x, y, octaves) {
+    let sum = 0, amp = 0.5, norm = 0;
+    for (let i = 0; i < octaves; i++) {
+      sum += amp * this.noise2(x, y);
+      norm += amp;
+      x = x * 2.03 + 17.1; y = y * 2.03 + 9.7;
+      amp *= 0.5;
+    }
+    return sum / norm;
+  },
+
+  fbm3(x, y, z, octaves) {
+    let sum = 0, amp = 0.5, norm = 0;
+    for (let i = 0; i < octaves; i++) {
+      sum += amp * this.noise3(x, y, z);
+      norm += amp;
+      x = x * 2.03 + 17.1; y = y * 2.03 + 9.7; z = z * 2.03 + 4.3;
+      amp *= 0.5;
+    }
+    return sum / norm;
   },
 
   /* ---------------------------- Sestavení ----------------------------- */
@@ -404,198 +517,429 @@ const Background = {
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
 
     this.buildSprites();
-    this.buildStars();
-    this.buildNebula();
-    this.buildDust();
+    this.buildSky();
     this.buildPlanet();
+    this.buildFlare();
+    this.scrollTarget = window.scrollY || 0;
+    this.scroll = this.scrollTarget;
     this.meteor = null;
-    this.nextMeteor = 4 + Math.random() * 6;
+    this.nextMeteor = 5 + Math.random() * 8;
+    this.satellite = null;
+    this.nextSatellite = 18 + Math.random() * 30;
   },
 
   /**
-   * Předkreslí hvězdu jako měkký kotouček. Kreslí se pak jen drawImage,
-   * takže i několik set hvězd zvládne slabší stroj.
+   * Předkreslí hvězdu: ostré jádro, slabé halo a u nejjasnějších difrakční
+   * kříž, jaký dělá optika dalekohledu. Při běhu se pak kreslí jen drawImage.
    */
   buildSprites() {
-    this.sprites = this.STAR_TINTS.map(tint => {
-      const r = 16;
+    const make = (rgb, spikes) => {
+      const size = spikes ? 192 : 64;
+      const half = size / 2;
       const c = document.createElement("canvas");
-      c.width = c.height = r * 2;
+      c.width = c.height = size;
       const g = c.getContext("2d");
-      const grad = g.createRadialGradient(r, r, 0, r, r, r);
-      const rgb = tint[0] + "," + tint[1] + "," + tint[2];
-      grad.addColorStop(0.0, "rgba(" + rgb + ",1)");
-      grad.addColorStop(0.25, "rgba(" + rgb + ",0.65)");
-      grad.addColorStop(0.55, "rgba(" + rgb + ",0.18)");
-      grad.addColorStop(1.0, "rgba(" + rgb + ",0)");
+      const core = spikes ? half * 0.34 : half;
+      const col = rgb.join(",");
+      const grad = g.createRadialGradient(half, half, 0, half, half, core);
+      grad.addColorStop(0.00, "rgba(255,255,255,1)");
+      grad.addColorStop(0.10, "rgba(" + col + ",0.95)");
+      grad.addColorStop(0.24, "rgba(" + col + ",0.36)");
+      grad.addColorStop(0.55, "rgba(" + col + ",0.07)");
+      grad.addColorStop(1.00, "rgba(" + col + ",0)");
       g.fillStyle = grad;
-      g.fillRect(0, 0, r * 2, r * 2);
-      return c;
-    });
-  },
+      g.fillRect(0, 0, size, size);
 
-  buildStars() {
-    const total = Math.round(Math.min(340, Math.max(70, (this.w * this.h) / 5200)));
-    this.layers = this.LAYERS.map(cfg => {
-      const stars = [];
-      const count = Math.round(total * cfg.share);
-      for (let i = 0; i < count; i++) {
-        stars.push({
-          x: Math.random() * this.w,
-          y: Math.random() * this.h,
-          r: cfg.size[0] + Math.random() * (cfg.size[1] - cfg.size[0]),
-          a: cfg.alpha[0] + Math.random() * (cfg.alpha[1] - cfg.alpha[0]),
-          sprite: Math.floor(Math.random() * this.sprites.length),
-          phase: Math.random() * Math.PI * 2,
-          speed: cfg.twinkle[0] + Math.random() * (cfg.twinkle[1] - cfg.twinkle[0]),
-          // Jen pár nejbližších hvězd dostane jemné difrakční paprsky.
-          spike: cfg.parallax > 0.5 && Math.random() < 0.09
-        });
+      if (spikes) {
+        g.globalCompositeOperation = "lighter";
+        for (let i = 0; i < 2; i++) {
+          g.save();
+          g.translate(half, half);
+          g.rotate(i * Math.PI / 2);
+          const ray = g.createLinearGradient(-half, 0, half, 0);
+          ray.addColorStop(0.00, "rgba(" + col + ",0)");
+          ray.addColorStop(0.42, "rgba(" + col + ",0.30)");
+          ray.addColorStop(0.50, "rgba(255,255,255,0.75)");
+          ray.addColorStop(0.58, "rgba(" + col + ",0.30)");
+          ray.addColorStop(1.00, "rgba(" + col + ",0)");
+          g.fillStyle = ray;
+          g.fillRect(-half, -0.7, size, 1.4);
+          g.restore();
+        }
       }
-      return { cfg: cfg, stars: stars };
-    });
-  },
-
-  /**
-   * Mlhovina se kreslí jednou do malého plátna a pak se roztahuje přes celou
-   * plochu – zvětšení samo o sobě zajistí měkké rozostření.
-   */
-  buildNebula() {
-    const W = 220;
-    const H = Math.max(80, Math.round(W * (this.h / Math.max(this.w, 1))));
-    const c = document.createElement("canvas");
-    c.width = W;
-    c.height = H;
-    const g = c.getContext("2d");
-
-    const accent = this.rgb(this.accent);
-    const blob = (x, y, r, rgb, alpha) => {
-      const grad = g.createRadialGradient(x, y, 0, x, y, r);
-      grad.addColorStop(0, "rgba(" + rgb.join(",") + "," + alpha + ")");
-      grad.addColorStop(1, "rgba(" + rgb.join(",") + ",0)");
-      g.fillStyle = grad;
-      g.fillRect(0, 0, W, H);
+      return c;
     };
 
-    // Mléčná dráha – měkký pruh napříč plátnem.
-    g.save();
-    g.translate(W * 0.5, H * 0.45);
-    g.rotate(-0.42);
-    const band = g.createLinearGradient(0, -H * 0.34, 0, H * 0.34);
-    band.addColorStop(0.00, "rgba(120,150,220,0)");
-    band.addColorStop(0.42, "rgba(140,165,225,0.13)");
-    band.addColorStop(0.52, "rgba(175,190,240,0.17)");
-    band.addColorStop(0.62, "rgba(140,165,225,0.11)");
-    band.addColorStop(1.00, "rgba(120,150,220,0)");
-    g.fillStyle = band;
-    g.fillRect(-W, -H * 0.34, W * 2, H * 0.68);
-    g.restore();
-
-    blob(W * 0.16, H * 0.06, W * 0.52, accent, 0.30);
-    blob(W * 0.88, H * 0.14, W * 0.44, [70, 105, 200], 0.20);
-    blob(W * 0.62, H * 0.72, W * 0.50, [96, 70, 170], 0.15);
-    blob(W * 0.05, H * 0.85, W * 0.40, accent, 0.10);
-    blob(W * 0.45, H * 0.34, W * 0.30, [180, 200, 255], 0.07);
-
-    this.nebula = c;
+    this.sprites = this.STAR_TINTS.map(t => ({ glow: make(t.rgb, false), spike: make(t.rgb, true) }));
   },
 
-  /**
-   * Mezihvězdný prach – tisíce drobných teček podél Mléčné dráhy.
-   * Kreslí se jednou; při běhu stojí jen jedno drawImage.
-   */
-  buildDust() {
-    const c = document.createElement("canvas");
-    c.width = Math.round(this.w * this.dpr);
-    c.height = Math.round(this.h * this.dpr);
-    const g = c.getContext("2d");
-    g.scale(this.dpr, this.dpr);
-
-    const count = Math.round(Math.min(2600, (this.w * this.h) / 700));
-    const angle = -0.42;
-    const cos = Math.cos(angle), sin = Math.sin(angle);
-    for (let i = 0; i < count; i++) {
-      // Body jsou nahuštěné k ose pruhu (součet náhod = zvonová křivka).
-      const along = (Math.random() - 0.5) * this.w * 1.6;
-      const across = ((Math.random() + Math.random() + Math.random()) / 3 - 0.5) * this.h * 0.55;
-      const x = this.w * 0.5 + along * cos - across * sin;
-      const y = this.h * 0.45 + along * sin + across * cos;
-      g.fillStyle = Math.random() < 0.8 ? "rgba(200, 214, 255, 1)" : "rgba(255, 220, 190, 1)";
-      g.globalAlpha = 0.08 + Math.random() * 0.22;
-      g.fillRect(x, y, Math.random() < 0.9 ? 0.8 : 1.4, Math.random() < 0.9 ? 0.8 : 1.4);
+  pickTint(value) {
+    let acc = 0;
+    for (let i = 0; i < this.STAR_TINTS.length; i++) {
+      acc += this.STAR_TINTS[i].share;
+      if (value < acc) return i;
     }
-    this.dust = c;
+    return 2;
   },
 
   /**
-   * Okraj planety vycházející v pravém dolním rohu. Atmosféra září barvou
-   * značky smíchanou s modrou, světlo dopadá zleva shora.
+   * Obloha je čtverec větší než úhlopříčka okna, aby se mohla otáčet a posouvat
+   * bez prázdných rohů. Pole hustoty se počítají v malém rozlišení (mlhoviny
+   * jsou měkké), hvězdy se kreslí v plném.
+   */
+  buildSky() {
+    const margin = 90;
+    const size = Math.ceil(Math.hypot(this.w, this.h)) + margin * 2;
+    const N = this.w * this.h < 600000 ? 260 : 340;
+
+    const light = new Float32Array(N * N);   // svit Mléčné dráhy
+    const warm = new Float32Array(N * N);    // blízkost galaktické výdutě
+    const dust = new Float32Array(N * N);    // temné prachové pásy
+    const emA = new Float32Array(N * N);     // emisní mlhoviny (odstín značky)
+    const emB = new Float32Array(N * N);     // reflexní mlhoviny (modré)
+
+    const ca = Math.cos(this.BAND_ANGLE), sa = Math.sin(this.BAND_ANGLE);
+
+    for (let j = 0; j < N; j++) {
+      const v = ((j + 0.5) / N) * 2 - 1;
+      for (let i = 0; i < N; i++) {
+        const u = ((i + 0.5) / N) * 2 - 1;
+        const k = j * N + i;
+
+        const along = u * ca + v * sa;
+        let across = -u * sa + v * ca;
+        across += (this.fbm2(along * 1.3 + 7.3, 3.1, 3) - 0.5) * 0.36;
+
+        const bulge = Math.exp(-Math.pow((along - 0.16) / 0.52, 2));
+        const width = 0.19 + 0.17 * bulge;
+        const band = Math.exp(-(across * across) / (width * width));
+        const clump = 0.5 + this.fbm2(u * 3.1 + 11, v * 3.1 + 5, 3);
+        const density = band * (0.45 + 0.55 * bulge) * clump;
+
+        // Prach: zvlněný šum soustředěný k ose galaxie.
+        const wx = u * 4.4 + (this.fbm2(u * 2.1 + 40, v * 2.1 + 3, 2) - 0.5) * 2.4;
+        const wy = v * 4.4 + (this.fbm2(u * 2.1 + 9, v * 2.1 + 70, 2) - 0.5) * 2.4;
+        const lane = this.smooth(0.47, 0.64, this.fbm2(wx, wy, 5)) *
+          Math.exp(-(across * across) / (width * width * 0.42));
+
+        light[k] = density * (1 - 0.9 * lane);
+        warm[k] = bulge * band;
+        dust[k] = lane * density;
+
+        const e1 = this.fbm2(u * 2.3 + 31, v * 2.3 + 17, 4);
+        emA[k] = this.smooth(0.55, 0.80, e1) * (0.12 + 0.9 * band) * (1 - 0.75 * lane);
+        const e2 = this.fbm2(u * 1.7 + 90, v * 1.7 + 55, 3);
+        emB[k] = this.smooth(0.57, 0.84, e2) * (0.30 + 0.45 * (1 - band));
+      }
+    }
+
+    const nebula = document.createElement("canvas");
+    nebula.width = nebula.height = N;
+
+    this.sky = { size: size, N: N, light: light, warm: warm, dust: dust, emA: emA, emB: emB, nebula: nebula, stars: null };
+    this.paintNebula();
+    this.buildStars();
+  },
+
+  /** Obarví pole do obrázku mlhovin; po změně značky stačí zopakovat jen tohle. */
+  paintNebula() {
+    const sky = this.sky;
+    if (!sky) return;
+    const N = sky.N;
+    const g = sky.nebula.getContext("2d");
+    const img = g.createImageData(N, N);
+    const d = img.data;
+    const rnd = this.rng(this.seed ^ 0x9E3779B9);
+
+    const ac = this.rgb(this.accent);
+    // Vodíková červeň (H-alfa) posunutá k barvě značky.
+    const ha = [ac[0] * 0.5 + 105, ac[1] * 0.5 + 22, ac[2] * 0.5 + 40];
+
+    for (let k = 0; k < N * N; k++) {
+      const L = sky.light[k], wm = sky.warm[k], du = sky.dust[k], a = sky.emA[k], b = sky.emB[k];
+      const gr = 122 + 133 * wm, gg = 140 + 72 * wm, gb = 190 - 30 * wm;
+      const n = (rnd() - 0.5) * 1.6;   // jemný šum proti pruhování přechodů
+      d[k * 4]     = 2 + L * gr * 0.20 + du * 16 + a * ha[0] * 0.36 + b * 16 + n;
+      d[k * 4 + 1] = 3 + L * gg * 0.20 + du * 7  + a * ha[1] * 0.36 + b * 40 + n;
+      d[k * 4 + 2] = 7 + L * gb * 0.20 + du * 3  + a * ha[2] * 0.36 + b * 78 + n;
+      d[k * 4 + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+  },
+
+  /**
+   * Slabé hvězdy se jednou vykreslí do plátna; jejich hustota sleduje svit
+   * Mléčné dráhy, takže pás galaxie tvoří hlavně hvězdy samy. Jasné hvězdy
+   * zůstávají jednotlivě, aby se mohly chvět a nést difrakční kříž.
+   */
+  buildStars() {
+    const sky = this.sky;
+    const size = sky.size, N = sky.N;
+    const scale = Math.min(this.dpr, Math.sqrt(5.2e6) / size);
+    const rnd = this.rng(this.seed ^ 0x51ED270B);
+
+    const c = document.createElement("canvas");
+    c.width = c.height = Math.round(size * scale);
+    const g = c.getContext("2d");
+    g.scale(scale, scale);
+
+    const colors = this.STAR_TINTS.map(t => "rgb(" + t.rgb.join(",") + ")");
+    const target = Math.round(Math.min(30000, (size * size) / 230));
+    let placed = 0, guard = target * 12;
+
+    while (placed < target && guard-- > 0) {
+      const x = rnd() * size, y = rnd() * size;
+      const k = Math.min(N - 1, Math.floor(y / size * N)) * N + Math.min(N - 1, Math.floor(x / size * N));
+      if (rnd() > 0.085 + Math.min(1, sky.light[k]) * 0.9) continue;
+
+      // Mocninné rozdělení jasu: slabých hvězd je řádově víc než jasných.
+      const b = Math.pow(rnd(), 3.4);
+      // Za prachem hvězdy červenají.
+      const tint = sky.dust[k] > 0.12 && rnd() < 0.6 ? 4 + (rnd() < 0.4 ? 1 : 0) : this.pickTint(rnd());
+      const r = 0.45 + b * 0.75;
+
+      g.globalAlpha = 0.14 + b * 0.8;
+      g.fillStyle = colors[tint];
+      g.beginPath();
+      g.arc(x, y, r, 0, Math.PI * 2);
+      g.fill();
+      if (b > 0.55) {
+        g.globalAlpha = 0.10 + (b - 0.55) * 0.3;
+        g.drawImage(this.sprites[tint].glow, x - r * 5, y - r * 5, r * 10, r * 10);
+      }
+      placed++;
+    }
+    sky.stars = c;
+
+    const count = Math.round(Math.max(36, Math.min(230, (size * size) / 26000)));
+    const half = size / 2;
+    this.bright = [];
+    for (let i = 0; i < count; i++) {
+      const b = Math.pow(rnd(), 2.4);
+      this.bright.push({
+        x: rnd() * size - half,
+        y: rnd() * size - half,
+        size: 7 + b * 15,
+        a: 0.5 + b * 0.5,
+        tint: this.pickTint(rnd()),
+        phase: rnd() * Math.PI * 2,
+        speed: 0.5 + rnd() * 1.6,
+        flicker: 0.10 + rnd() * 0.16,
+        spike: b > 0.62
+      });
+    }
+  },
+
+  /* ------------------------------ Planeta ----------------------------- */
+
+  /**
+   * Okraj planety při pohledu z oběžné dráhy. Slunce stojí těsně za obzorem,
+   * takže je vidět jen úzký osvětlený srpek, soumrak a noční strana se světly
+   * měst. Povrch se počítá bod po bodu v polovičním rozlišení; ostrý obrys
+   * a atmosféru dodá až vektorové dokreslení.
    */
   buildPlanet() {
     if (!this.w || !this.h) return;
-    const c = document.createElement("canvas");
-    c.width = Math.round(this.w * this.dpr);
-    c.height = Math.round(this.h * this.dpr);
-    const g = c.getContext("2d");
-    g.scale(this.dpr, this.dpr);
 
-    const R = Math.max(this.w, this.h) * 0.62;
-    const cx = this.w * 0.92;
-    const cy = this.h + R * 0.58;
-    const accent = this.rgb(this.accent);
-    const rim = [
-      Math.round(accent[0] * 0.45 + 110 * 0.55),
-      Math.round(accent[1] * 0.45 + 140 * 0.55),
-      Math.round(accent[2] * 0.45 + 255 * 0.55)
-    ].join(",");
+    const R = Math.max(this.w, this.h) * 0.78;
+    const cx = this.w * 0.78;
+    const cy = this.h + R * 0.80;
+    const pad = 110;
+    const x0 = Math.max(-pad, cx - R * 1.08);
+    const x1 = Math.min(this.w + pad, cx + R * 1.08);
+    const y0 = cy - R * 1.08;
+    const y1 = this.h + pad;
+    const bw = x1 - x0, bh = y1 - y0;
 
-    // Vnější záře atmosféry
-    const halo = g.createRadialGradient(cx, cy, R * 0.96, cx, cy, R * 1.16);
-    halo.addColorStop(0, "rgba(" + rim + ",0.30)");
-    halo.addColorStop(0.35, "rgba(" + rim + ",0.10)");
-    halo.addColorStop(1, "rgba(" + rim + ",0)");
-    g.fillStyle = halo;
-    g.fillRect(0, 0, this.w, this.h);
+    // Směr ke Slunci: v rovině obrazu vlevo nahoru, převážně za planetou.
+    const sdx = -0.30, sdy = -0.954, K = 0.40, LZ = -0.917;
 
-    // Tělo planety – tmavé, nasvícené zleva shora
+    const t = Math.min(1, Math.sqrt(170000 / (bw * bh)));
+    const tw = Math.max(2, Math.ceil(bw * t)), th = Math.max(2, Math.ceil(bh * t));
+    const tex = document.createElement("canvas");
+    tex.width = tw;
+    tex.height = th;
+    const tg = tex.getContext("2d");
+    const img = tg.createImageData(tw, th);
+    const d = img.data;
+
+    for (let j = 0; j < th; j++) {
+      const dy = (y0 + (j + 0.5) / t - cy) / R;
+      for (let i = 0; i < tw; i++) {
+        const dx = (x0 + (i + 0.5) / t - cx) / R;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > 1.06) continue;
+
+        let nx = dx, ny = dy, nz = 0;
+        if (d2 >= 1) { const inv = 1 / Math.sqrt(d2); nx *= inv; ny *= inv; }
+        else nz = Math.sqrt(1 - d2);
+
+        const ndl = (nx * sdx + ny * sdy) * K + nz * LZ;
+        const day = this.smooth(-0.05, 0.22, ndl);
+        const lit = Math.max(0, Math.min(1, ndl / 0.36));
+
+        // Souřadnice na kouli, pootočené kolem svislé osy.
+        const ax = nx * 0.82 + nz * 0.57, ay = ny, az = -nx * 0.57 + nz * 0.82;
+
+        const cont = this.fbm3(ax * 2.6 + 3.7, ay * 2.6 + 1.3, az * 2.6 + 8.1, 5);
+        const land = this.smooth(0.50, 0.55, cont);
+        const warp = this.fbm3(ax * 3 + 20, ay * 3 + 20, az * 3 + 20, 2) - 0.5;
+        const cloud = this.smooth(0.47, 0.68,
+          this.fbm3(ax * 4.4 + warp * 1.8, ay * 10 + warp, az * 4.4 + warp * 1.8, 4));
+
+        let r, g, b;
+        if (day > 0.002) {
+          const shallow = this.smooth(0.40, 0.50, cont);
+          const high = this.smooth(0.56, 0.70, cont);
+          const sr = (6 + 12 * shallow) * (1 - land) + (52 + 84 * high) * land;
+          const sg = (28 + 44 * shallow) * (1 - land) + (82 + 30 * high) * land;
+          const sb = (68 + 54 * shallow) * (1 - land) + (46 + 30 * high) * land;
+          const sun = 0.22 + 1.15 * lit;
+          const cw = cloud * 0.93, cs = 242 * (0.30 + 0.9 * lit);
+          r = (sr * sun * (1 - cw) + cs * cw) * day;
+          g = (sg * sun * (1 - cw) + cs * cw) * day;
+          b = (sb * sun * (1 - cw) + (cs + 8) * cw) * day;
+          // Soumrak barví mraky a okraj dne do oranžova.
+          const dusk = day * (1 - day) * 4;
+          r += 235 * dusk * 0.16 * (0.45 + cloud);
+          g += 108 * dusk * 0.16 * (0.45 + cloud);
+          b += 44 * dusk * 0.16 * (0.45 + cloud);
+        } else {
+          r = 0; g = 0; b = 0;
+        }
+
+        const night = 1 - day;
+        if (night > 0.02) {
+          r += (2 + 8 * cloud) * night;
+          g += (3 + 9 * cloud) * night;
+          b += (7 + 13 * cloud) * night;
+          if (land > 0.5) {
+            const region = this.smooth(0.50, 0.64, this.fbm3(ax * 13 + 60, ay * 13 + 60, az * 13 + 60, 3));
+            if (region > 0.01) {
+              const dots = this.smooth(0.60, 0.88, this.noise3(ax * 250, ay * 250, az * 250)) +
+                0.7 * this.smooth(0.70, 0.92, this.noise3(ax * 85 + 9, ay * 85 + 9, az * 85 + 9));
+              const city = region * dots * (1 - cloud * 0.85) * night;
+              r += 255 * city * 0.95;
+              g += 184 * city * 0.95;
+              b += 104 * city * 0.95;
+            }
+          }
+        }
+
+        // Opar atmosféry houstne směrem k okraji kotouče.
+        const haze = Math.pow(1 - nz, 4) * (0.08 + 0.92 * day);
+        r += 66 * haze; g += 138 * haze; b += 255 * haze;
+
+        const k = (j * tw + i) * 4;
+        d[k] = r; d[k + 1] = g; d[k + 2] = b; d[k + 3] = 255;
+      }
+    }
+    tg.putImageData(img, 0, 0);
+
+    this.planet = {
+      R: R, cx: cx, cy: cy, x: x0, y: y0, w: bw, h: bh,
+      sunX: cx + sdx * R, sunY: cy + sdy * R,
+      texture: tex, canvas: null
+    };
+    this.paintPlanet();
+  },
+
+  /** Složí povrch, ostrý obrys a vrstvy atmosféry do výsledného obrázku. */
+  paintPlanet() {
+    const p = this.planet;
+    if (!p) return;
+
+    const scale = Math.min(this.dpr, 1.5);
+    const make = () => {
+      const c = document.createElement("canvas");
+      c.width = Math.max(2, Math.round(p.w * scale));
+      c.height = Math.max(2, Math.round(p.h * scale));
+      const g = c.getContext("2d");
+      g.setTransform(scale, 0, 0, scale, -p.x * scale, -p.y * scale);
+      return { c: c, g: g };
+    };
+
+    const body = make();
+    const g = body.g;
     g.save();
     g.beginPath();
-    g.arc(cx, cy, R, 0, Math.PI * 2);
+    g.arc(p.cx, p.cy, p.R, 0, Math.PI * 2);
     g.clip();
-    const body = g.createRadialGradient(cx - R * 0.45, cy - R * 0.7, R * 0.1, cx, cy, R * 1.05);
-    body.addColorStop(0, "#1B2550");
-    body.addColorStop(0.45, "#0A1030");
-    body.addColorStop(1, "#03050F");
-    g.fillStyle = body;
-    g.fillRect(0, 0, this.w, this.h);
-
-    // Jemné pásy oblačnosti
-    for (let i = 0; i < 7; i++) {
-      const y = cy - R + R * (0.05 + i * 0.045);
-      g.fillStyle = "rgba(" + rim + "," + (0.025 + (i % 2) * 0.02) + ")";
-      g.beginPath();
-      g.ellipse(cx - R * 0.15, y, R * 1.1, R * 0.012 + i * 1.5, -0.08, 0, Math.PI * 2);
-      g.fill();
-    }
-
-    // Stín na odvrácené straně
-    const night = g.createLinearGradient(cx - R, cy - R, cx + R * 0.4, cy);
-    night.addColorStop(0, "rgba(0,0,0,0)");
-    night.addColorStop(1, "rgba(0,0,0,0.55)");
-    g.fillStyle = night;
-    g.fillRect(0, 0, this.w, this.h);
+    g.imageSmoothingEnabled = true;
+    g.imageSmoothingQuality = "high";
+    g.drawImage(p.texture, p.x, p.y, p.w, p.h);
     g.restore();
 
-    // Ostrý srpek světla na okraji
-    g.beginPath();
-    g.arc(cx, cy, R, Math.PI * 1.08, Math.PI * 1.62);
-    g.strokeStyle = "rgba(" + rim + ",0.85)";
-    g.lineWidth = 1.6;
-    g.shadowColor = "rgba(" + rim + ",0.9)";
-    g.shadowBlur = 18;
-    g.stroke();
+    // Atmosféra: teplá linka u povrchu, jasný modrobílý okraj a modré halo
+    // slábnoucí do vesmíru. Odstín se lehce řídí barvou značky.
+    const ac = this.rgb(this.accent);
+    const rim = [
+      Math.round(ac[0] * 0.22 + 72 * 0.78),
+      Math.round(ac[1] * 0.22 + 142 * 0.78),
+      Math.round(ac[2] * 0.22 + 255 * 0.78)
+    ].join(",");
 
-    this.planet = c;
+    const air = make();
+    const a = air.g;
+    const inner = p.R * 0.984, outer = p.R * 1.075;
+    const at = r => (r * p.R - inner) / (outer - inner);
+    const halo = a.createRadialGradient(p.cx, p.cy, inner, p.cx, p.cy, outer);
+    halo.addColorStop(0, "rgba(255,170,96,0)");
+    halo.addColorStop(at(0.9965), "rgba(255,190,130,0.34)");
+    halo.addColorStop(at(1.0000), "rgba(214,232,255,0.92)");
+    halo.addColorStop(at(1.0040), "rgba(" + rim + ",0.62)");
+    halo.addColorStop(at(1.0200), "rgba(" + rim + ",0.20)");
+    halo.addColorStop(1, "rgba(" + rim + ",0)");
+    a.fillStyle = halo;
+    a.fillRect(p.x, p.y, p.w, p.h);
+
+    // Záře je nejsilnější u Slunce a směrem k noční straně slábne.
+    a.globalCompositeOperation = "destination-in";
+    const mask = a.createRadialGradient(p.sunX, p.sunY, 0, p.sunX, p.sunY, p.R * 1.25);
+    mask.addColorStop(0, "rgba(0,0,0,1)");
+    mask.addColorStop(0.22, "rgba(0,0,0,0.78)");
+    mask.addColorStop(0.55, "rgba(0,0,0,0.30)");
+    mask.addColorStop(1, "rgba(0,0,0,0.09)");
+    a.fillStyle = mask;
+    a.fillRect(p.x, p.y, p.w, p.h);
+
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = "lighter";
+    g.drawImage(air.c, 0, 0);
+
+    p.canvas = body.c;
+  },
+
+  /** Záře Slunce vykukujícího zpoza obzoru. */
+  buildFlare() {
+    const size = 512, half = size / 2;
+    const c = document.createElement("canvas");
+    c.width = c.height = size;
+    const g = c.getContext("2d");
+    const glow = g.createRadialGradient(half, half, 0, half, half, half);
+    glow.addColorStop(0.00, "rgba(255,255,255,1)");
+    glow.addColorStop(0.035, "rgba(255,252,240,0.96)");
+    glow.addColorStop(0.09, "rgba(255,232,186,0.46)");
+    glow.addColorStop(0.24, "rgba(255,190,120,0.13)");
+    glow.addColorStop(0.55, "rgba(140,170,255,0.04)");
+    glow.addColorStop(1.00, "rgba(120,150,255,0)");
+    g.fillStyle = glow;
+    g.fillRect(0, 0, size, size);
+
+    // Jemný vodorovný odlesk objektivu.
+    g.globalCompositeOperation = "lighter";
+    g.translate(half, half);
+    g.scale(1, 0.028);
+    const streak = g.createRadialGradient(0, 0, 0, 0, 0, half);
+    streak.addColorStop(0, "rgba(255,246,228,0.55)");
+    streak.addColorStop(0.5, "rgba(200,215,255,0.14)");
+    streak.addColorStop(1, "rgba(200,215,255,0)");
+    g.fillStyle = streak;
+    g.beginPath();
+    g.arc(0, 0, half, 0, Math.PI * 2);
+    g.fill();
+
+    this.flare = c;
   },
 
   /* ---------------------------- Vykreslení ---------------------------- */
@@ -610,82 +954,87 @@ const Background = {
 
   drawFrame(dt) {
     const ctx = this.ctx;
-    if (!ctx || !this.w || !this.h) return;
+    const sky = this.sky;
+    if (!ctx || !sky || !this.w || !this.h) return;
 
-    ctx.clearRect(0, 0, this.w, this.h);
+    this.time += dt;
+    this.angle += dt * this.SPIN;
 
-    if (this.nebula) {
-      ctx.globalAlpha = 1;
-      ctx.drawImage(this.nebula, 0, 0, this.w, this.h);
-    }
-
-    // Kurzor posouvá vrstvy s mírným doběhem – jen naznačená hloubka.
+    // Kurzor a posun stránky hýbou vrstvami s mírným doběhem – naznačená hloubka.
     this.pointer.x += (this.pointer.tx - this.pointer.x) * Math.min(1, dt * 2.5);
     this.pointer.y += (this.pointer.ty - this.pointer.y) * Math.min(1, dt * 2.5);
+    this.scroll += (this.scrollTarget - this.scroll) * Math.min(1, dt * 7);
+    const scroll = Math.min(this.scroll, 2200);
 
-    if (this.dust) {
-      ctx.globalAlpha = 1;
-      ctx.drawImage(this.dust, -this.pointer.x * 4, -this.pointer.y * 4, this.w, this.h);
-    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
+    ctx.clearRect(0, 0, this.w, this.h);
 
-    this.drawStars(dt);
+    const tx = this.w / 2 - this.pointer.x * 9;
+    const ty = this.h / 2 - this.pointer.y * 7 - scroll * 0.02;
+    const half = sky.size / 2;
 
-    if (this.planet) {
-      ctx.globalAlpha = 1;
-      ctx.drawImage(this.planet, -this.pointer.x * 6, -this.pointer.y * 4, this.w, this.h);
-    }
+    ctx.save();
+    ctx.translate(tx, ty);
+    ctx.rotate(this.angle);
+    ctx.drawImage(sky.nebula, -half, -half, sky.size, sky.size);
+    ctx.drawImage(sky.stars, -half, -half, sky.size, sky.size);
+    ctx.restore();
 
+    this.drawBright(dt, tx, ty);
+    this.updateSatellite(dt);
     this.updateMeteor(dt);
+
+    const p = this.planet;
+    if (p && p.canvas) {
+      const ox = -this.pointer.x * 16;
+      const oy = -this.pointer.y * 10 - Math.min(scroll * 0.045, 95);
+      const sx = p.sunX + ox, sy = p.sunY + oy;
+      const breath = 1 + 0.035 * Math.sin(this.time * 0.6);
+      const span = (this.w + this.h) * 0.31 * breath;
+
+      // Slunce je za planetou: kotouč ho zčásti zakryje, přes obzor přesáhne jen záře.
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = 0.95;
+      ctx.drawImage(this.flare, sx - span / 2, sy - span / 2, span, span);
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = 1;
+      ctx.drawImage(p.canvas, p.x + ox, p.y + oy, p.w, p.h);
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = 0.36;
+      const bloom = span * 0.42;
+      ctx.drawImage(this.flare, sx - bloom / 2, sy - bloom / 2, bloom, bloom);
+      ctx.globalCompositeOperation = "source-over";
+    }
 
     ctx.globalAlpha = 1;
   },
 
-  drawStars(dt) {
+  drawBright(dt, tx, ty) {
     const ctx = this.ctx;
-    const margin = 24;
+    const cos = Math.cos(this.angle), sin = Math.sin(this.angle);
+    // Jasné hvězdy jsou „blíž": na kurzor reagují o něco víc než pozadí.
+    const px = tx - this.pointer.x * 5, py = ty - this.pointer.y * 4;
 
-    for (let l = 0; l < this.layers.length; l++) {
-      const layer = this.layers[l];
-      const cfg = layer.cfg;
-      const stars = layer.stars;
-      const ox = -this.pointer.x * cfg.parallax * 14;
-      const oy = -this.pointer.y * cfg.parallax * 14;
+    for (let i = 0; i < this.bright.length; i++) {
+      const s = this.bright[i];
+      const x = px + s.x * cos - s.y * sin;
+      const y = py + s.x * sin + s.y * cos;
+      if (x < -40 || y < -40 || x > this.w + 40 || y > this.h + 40) continue;
 
-      for (let i = 0; i < stars.length; i++) {
-        const s = stars[i];
-
-        s.x += cfg.drift * dt;
-        s.y += cfg.drift * 0.28 * dt;
-        if (s.x > this.w + margin) { s.x = -margin; s.y = Math.random() * this.h; }
-        if (s.y > this.h + margin) { s.y = -margin; s.x = Math.random() * this.w; }
-
-        s.phase += s.speed * dt;
-        const alpha = s.a * (0.68 + 0.32 * Math.sin(s.phase));
-        const size = s.r * 4.2;
-
-        ctx.globalAlpha = alpha;
-        ctx.drawImage(
-          this.sprites[s.sprite],
-          s.x + ox - size / 2,
-          s.y + oy - size / 2,
-          size, size
-        );
-
-        if (s.spike) {
-          const px = s.x + ox, py = s.y + oy, len = s.r * 9;
-          ctx.globalAlpha = alpha * 0.35;
-          ctx.strokeStyle = "rgba(220, 232, 255, 1)";
-          ctx.lineWidth = 0.7;
-          ctx.beginPath();
-          ctx.moveTo(px - len, py); ctx.lineTo(px + len, py);
-          ctx.moveTo(px, py - len); ctx.lineTo(px, py + len);
-          ctx.stroke();
-        }
+      s.phase += s.speed * dt;
+      ctx.globalAlpha = s.a * (1 - s.flicker * (0.5 + 0.5 * Math.sin(s.phase)));
+      if (s.spike) {
+        const size = s.size * 4.2;
+        ctx.drawImage(this.sprites[s.tint].spike, x - size / 2, y - size / 2, size, size);
+      } else {
+        ctx.drawImage(this.sprites[s.tint].glow, x - s.size / 2, y - s.size / 2, s.size, s.size);
       }
     }
+    ctx.globalAlpha = 1;
   },
 
-  /* --------------------------- Padající hvězda ------------------------ */
+  /* ------------------------------ Meteor ------------------------------ */
 
   updateMeteor(dt) {
     if (!this.enabled) return;
@@ -703,13 +1052,13 @@ const Background = {
 
     if (m.life >= m.maxLife || m.x < -300 || m.x > this.w + 300 || m.y > this.h + 300) {
       this.meteor = null;
-      this.nextMeteor = 7 + Math.random() * 11;
+      this.nextMeteor = 9 + Math.random() * 16;
       return;
     }
 
-    // Náběh a doznění, aby se hvězda neobjevila a nezmizela skokem.
+    // Náběh a doznění, aby se stopa neobjevila a nezmizela skokem.
     const t = m.life / m.maxLife;
-    const fade = Math.min(1, t / 0.18) * Math.min(1, (1 - t) / 0.35);
+    const fade = Math.min(1, t / 0.15) * Math.min(1, (1 - t) / 0.45);
 
     const len = Math.hypot(m.vx, m.vy);
     const tailX = m.x - (m.vx / len) * m.len;
@@ -717,12 +1066,13 @@ const Background = {
 
     const ctx = this.ctx;
     const grad = ctx.createLinearGradient(tailX, tailY, m.x, m.y);
-    grad.addColorStop(0, "rgba(190, 215, 255, 0)");
-    grad.addColorStop(1, "rgba(235, 245, 255, " + (0.75 * fade).toFixed(3) + ")");
+    grad.addColorStop(0, "rgba(160, 200, 255, 0)");
+    grad.addColorStop(0.7, "rgba(190, 220, 255, " + (0.28 * fade).toFixed(3) + ")");
+    grad.addColorStop(1, "rgba(245, 250, 255, " + (0.9 * fade).toFixed(3) + ")");
 
     ctx.globalAlpha = 1;
     ctx.strokeStyle = grad;
-    ctx.lineWidth = 1.6;
+    ctx.lineWidth = 1.3;
     ctx.lineCap = "round";
     ctx.beginPath();
     ctx.moveTo(tailX, tailY);
@@ -730,25 +1080,65 @@ const Background = {
     ctx.stroke();
 
     ctx.globalAlpha = fade;
-    const head = 13;
-    ctx.drawImage(this.sprites[0], m.x - head / 2, m.y - head / 2, head, head);
+    const head = 11;
+    ctx.drawImage(this.sprites[2].glow, m.x - head / 2, m.y - head / 2, head, head);
     ctx.globalAlpha = 1;
   },
 
   spawnMeteor() {
-    const toLeft = Math.random() < 0.35;
-    const speed = 380 + Math.random() * 260;
-    const angle = (toLeft ? Math.PI - 0.55 : 0.55) + (Math.random() - 0.5) * 0.22;
+    const toLeft = Math.random() < 0.4;
+    const speed = 620 + Math.random() * 420;
+    const angle = (toLeft ? Math.PI - 0.5 : 0.5) + (Math.random() - 0.5) * 0.3;
 
     this.meteor = {
-      x: toLeft ? this.w * (0.55 + Math.random() * 0.45) : this.w * Math.random() * 0.55,
-      y: -20 + Math.random() * this.h * 0.35,
+      x: toLeft ? this.w * (0.5 + Math.random() * 0.5) : this.w * Math.random() * 0.5,
+      y: -20 + Math.random() * this.h * 0.3,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
-      len: 90 + Math.random() * 90,
+      len: 110 + Math.random() * 120,
       life: 0,
-      maxLife: 1.1 + Math.random() * 0.6
+      maxLife: 0.55 + Math.random() * 0.45
     };
+  },
+
+  /* ------------------------------ Družice ----------------------------- */
+
+  /** Občas přeletí družice: klidný bod, který se na chvíli zableskne. */
+  updateSatellite(dt) {
+    if (!this.enabled) return;
+
+    if (!this.satellite) {
+      this.nextSatellite -= dt;
+      if (this.nextSatellite <= 0) {
+        const fromLeft = Math.random() < 0.5;
+        const speed = 46 + Math.random() * 30;
+        const slope = (Math.random() - 0.5) * 0.5;
+        this.satellite = {
+          x: fromLeft ? -10 : this.w + 10,
+          y: this.h * (0.08 + Math.random() * 0.45),
+          vx: (fromLeft ? 1 : -1) * speed,
+          vy: slope * speed,
+          flareAt: 0.25 + Math.random() * 0.5
+        };
+      }
+      return;
+    }
+
+    const s = this.satellite;
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    if (s.x < -20 || s.x > this.w + 20 || s.y < -20 || s.y > this.h + 20) {
+      this.satellite = null;
+      this.nextSatellite = 50 + Math.random() * 70;
+      return;
+    }
+
+    const progress = s.vx > 0 ? s.x / this.w : 1 - s.x / this.w;
+    const glint = Math.exp(-Math.pow((progress - s.flareAt) / 0.05, 2));
+    const size = 5 + glint * 9;
+    this.ctx.globalAlpha = 0.42 + glint * 0.58;
+    this.ctx.drawImage(this.sprites[3].glow, s.x - size / 2, s.y - size / 2, size, size);
+    this.ctx.globalAlpha = 1;
   }
 };
 
@@ -821,6 +1211,7 @@ class App {
     document.body.setAttribute("data-brand", this.vehicle.brand || "audi");
     Background.refreshAccent();
 
+    this.markVehicleChange();
     this.renderHero();
     this.renderAccordion();
     this.renderTimeline();
@@ -829,6 +1220,26 @@ class App {
     this.renderAlerts();
     this.renderWorkshopSuggestions();
     this.updateFormHints();
+  }
+
+  /**
+   * Po přepnutí stroje (a při prvním zobrazení) přístroje „ožijí": ručičky
+   * projedou celou stupnici a obsah štítu se prolne. Běžné překreslení po
+   * uložení záznamu tuhle animaci nespouští.
+   */
+  static markVehicleChange() {
+    const hero = document.getElementById("vehicle-hero");
+    if (this.shownVehicleId === this.vehicle.id) {
+      hero.classList.remove("sweep");
+      return;
+    }
+    this.shownVehicleId = this.vehicle.id;
+    hero.classList.remove("sweep");
+    void hero.offsetWidth;
+    hero.classList.add("sweep");
+    // Třída po doběhnutí zmizí, aby hledání v historii záznamy znovu neanimovalo.
+    clearTimeout(this.sweepTimer);
+    this.sweepTimer = setTimeout(() => hero.classList.remove("sweep"), 2600);
   }
 
   /* ------------------------------ Hero -------------------------------- */
@@ -889,7 +1300,7 @@ class App {
     const el = document.getElementById("odometer");
     el.setAttribute("aria-label", "Tachometr " + Utils.km(km));
     el.innerHTML = digits.map((d, i) =>
-      '<span class="odo-digit' + (i < digits.length - String(km).length ? " odo-lead" : "") + '">' + d + "</span>"
+      '<span class="odo-digit' + (i < digits.length - String(km).length ? " odo-lead" : "") + '"><span class="odo-num" style="--i:' + i + '">' + d + "</span></span>"
     ).join("") + '<span class="odo-unit">km</span>';
   }
 
@@ -901,11 +1312,12 @@ class App {
     const frac = Math.max(0, Math.min(1, opts.fraction));
     const arc = 251.33;
     const angle = -90 + 180 * frac;
-    const ticks = [0, 0.25, 0.5, 0.75, 1].map(t => {
+    const ticks = Array.from({ length: 21 }, (_, n) => n / 20).map(t => {
       const a = Math.PI * (1 - t);
+      const major = Math.round(t * 20) % 5 === 0;
       const x1 = 100 + Math.cos(a) * 96, y1 = 110 - Math.sin(a) * 96;
-      const x2 = 100 + Math.cos(a) * 88, y2 = 110 - Math.sin(a) * 88;
-      return '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '"/>';
+      const x2 = 100 + Math.cos(a) * (major ? 87 : 92), y2 = 110 - Math.sin(a) * (major ? 87 : 92);
+      return '<line' + (major ? "" : ' class="tick-minor"') + ' x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '"/>';
     }).join("");
     return '<svg class="gauge-dial gauge-' + opts.status + '" viewBox="0 0 200 122" aria-hidden="true">' +
         '<g class="gauge-ticks">' + ticks + "</g>" +
@@ -2617,5 +3029,9 @@ class App {
   }
 }
 
-document.addEventListener("DOMContentLoaded", () => CloudGarage.boot());
+document.addEventListener("DOMContentLoaded", () => {
+  // Hvězdy běží už za přihlašovací obrazovkou; chyba pozadí nesmí zdržet přihlášení.
+  try { Background.start(); } catch (e) { console.warn(e); }
+  CloudGarage.boot();
+});
 

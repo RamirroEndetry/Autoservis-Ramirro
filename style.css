@@ -8,11 +8,11 @@
 :root {
   color-scheme: dark;
   /* Plochy – noční vesmír; panely jsou sklo, přes které prosvítají hvězdy */
-  --bg:            #050818;
-  --bg-elevated:   rgba(12, 17, 38, 0.86);
-  --panel:         rgba(12, 17, 38, 0.80);
-  --panel-2:       rgba(20, 27, 56, 0.88);
-  --input:         #080C1E;
+  --bg:            #03040B;
+  --bg-elevated:   rgba(13, 18, 38, 0.72);
+  --panel:         rgba(9, 13, 29, 0.70);
+  --panel-2:       rgba(20, 27, 54, 0.84);
+  --input:         rgba(4, 7, 18, 0.82);
   --border:        rgba(160, 178, 255, 0.10);
   --border-strong: rgba(160, 178, 255, 0.20);
 
@@ -91,7 +91,6 @@ body.modal-open { overflow: hidden; }
   height: 100vh;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.9;
 }
 
 /* Vinětace – přitmaví okraje, aby obsah zůstal čitelný i nad mlhovinou */
@@ -101,10 +100,10 @@ body::before {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: radial-gradient(135% 105% at 50% 30%, transparent 52%, rgba(4, 6, 11, 0.5) 100%);
+  background: radial-gradient(135% 105% at 50% 34%, transparent 58%, rgba(2, 3, 8, 0.42) 100%);
 }
 
-.app-header, .page, .modal-overlay, .toast-area { position: relative; z-index: 1; }
+.app-header, .page, .modal-overlay, .toast-area, .auth-gate { position: relative; z-index: 1; }
 
 h1, h2, h3, h4 { font-family: var(--font-head); font-weight: 700; line-height: 1.25; }
 
@@ -123,9 +122,9 @@ a { color: var(--accent); }
   position: sticky;
   top: 0;
   z-index: 60;
-  background: rgba(5, 8, 24, 0.72);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: rgba(3, 5, 14, 0.62);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
   border-bottom: 1px solid var(--border);
 }
 
@@ -665,8 +664,8 @@ button.lamp:hover { color: var(--text); border-color: var(--border-strong); }
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   padding: 22px 24px;
-  backdrop-filter: blur(7px);
-  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
 }
 .panel-accent { border-color: var(--accent-border); background: linear-gradient(180deg, var(--accent-soft), transparent 60%), var(--panel); }
 
@@ -726,7 +725,7 @@ label, legend {
 .form-control-sm { padding: 8px 12px; font-size: 13px; width: auto; }
 
 select.form-control { appearance: none; background-image: none; cursor: pointer; }
-select.form-control option { background: #10141d; color: var(--text); }
+select.form-control option { background: #0B1022; color: var(--text); }
 textarea.form-control { resize: vertical; min-height: 78px; }
 
 input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
@@ -1477,16 +1476,7 @@ button.stk-status { cursor: pointer; }
   .invoice-row > input:first-child, .invoice-row > .invoice-target { grid-column: 1 / -1; }
 }
 /* Authentication and cloud status stay usable on narrow screens. */
-.auth-gate { min-height:100vh; display:grid; place-items:center; padding:24px; background:radial-gradient(ellipse at top,#1A2350,#050818 65%); }
-.auth-card { width:min(100%,430px); padding:32px; border:1px solid #303a45; border-radius:24px; background:#151b25; box-shadow:0 24px 80px #0005; }
-.auth-card h1 { margin:12px 0; font-size:1.7rem; }
-.auth-card p { color:#a4b0c1; margin:12px 0 20px; }
-.auth-icon { color:#58bd2a; font-size:2rem; }
-.auth-card form { display:grid; gap:12px; }
-.auth-card label { margin-top:8px; }
-.auth-card input { min-height:46px; width:100%; padding:10px 12px; color:#f0f3f7; background:#0e131b; border:1px solid #384352; border-radius:10px; }
-.auth-card .btn-primary { background:#4dad2b; border-color:#4dad2b; }
-.cloud-bar { position:relative; z-index:5; display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; padding:12px 24px; background:rgba(10,14,34,.92); border-bottom:1px solid var(--border); font-size:.85rem; }
+.cloud-bar { position:relative; z-index:5; display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; padding:12px 24px; background:rgba(3,5,14,.78); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border-bottom:1px solid var(--border); font-size:.85rem; }
 .cloud-bar #sync-status { flex:1 1 260px; }
 .cloud-bar[data-state=saved] #sync-status { color:#90d879; }
 .cloud-bar[data-state=error] #sync-status { color:#ffbb82; }
@@ -1527,3 +1517,319 @@ button.stk-status { cursor: pointer; }
 .cluster .hero-logo { width: 96px; height: 68px; border-radius: 18px; padding: 10px 12px; }
 .switch-logo { width: 46px; border-radius: 9px; }
 .switch-logo img { width: 100%; height: 100%; object-fit: contain; }
+
+/* ==========================================================================
+   SKLO, SVĚTLO A POHYB
+   Panely jsou sklo nad hvězdami; přístroje a obsah po načtení „ožijí".
+   Všechny animace respektují systémové omezení pohybu (viz výše).
+   ========================================================================== */
+
+@property --orbit {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* Bez hvězdného pozadí (vypnuté v nastavení) zůstane aspoň noční přechod. */
+body { background: radial-gradient(120% 70% at 50% 0%, #0A0F2A 0%, var(--bg) 62%) fixed var(--bg); }
+
+html { scrollbar-color: rgba(160, 178, 255, 0.28) transparent; scrollbar-width: thin; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: rgba(160, 178, 255, 0.22); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: rgba(160, 178, 255, 0.4); }
+
+/* ------------------------------- Sklo --------------------------------- */
+
+.panel, .empty-hero, .modal, .switch-item {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 24px 48px -28px rgba(0, 0, 0, 0.85);
+}
+.panel, .empty-hero {
+  background: linear-gradient(180deg, rgba(18, 24, 50, 0.66), var(--panel) 42%);
+}
+.panel-accent { background: linear-gradient(180deg, var(--accent-soft), transparent 60%), var(--panel); }
+.empty-hero { backdrop-filter: blur(16px) saturate(140%); -webkit-backdrop-filter: blur(16px) saturate(140%); }
+.panel { transition: border-color 0.3s var(--ease); }
+.panel:hover { border-color: rgba(160, 178, 255, 0.17); }
+
+.cluster {
+  background:
+    radial-gradient(90% 70% at 50% 0%, rgba(120, 140, 255, 0.11), transparent 70%),
+    linear-gradient(180deg, rgba(14, 19, 42, 0.74), rgba(5, 8, 20, 0.84));
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.4),
+    0 40px 90px -30px rgba(0, 0, 0, 0.8);
+}
+
+/* Odlesk, který po skle štítu sleduje kurzor. */
+.cluster::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, -20%), rgba(170, 190, 255, 0.09), transparent 62%);
+}
+.cluster > * { position: relative; z-index: 1; }
+
+/* Světelná linka běžící po horní hraně štítu. */
+.cluster-top::before {
+  content: "";
+  position: absolute;
+  left: 8%; right: 8%; top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), rgba(255, 255, 255, 0.85), var(--accent), transparent);
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  opacity: 0.75;
+}
+
+#hero-title {
+  background: linear-gradient(180deg, #FFFFFF 20%, #B9C4E8 110%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Rámeček loga s obíhajícím světlem v barvě značky. */
+.cluster .hero-logo { position: relative; isolation: isolate; }
+.cluster .hero-logo::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(from var(--orbit), transparent 0 62%, var(--accent) 82%, #fff 90%, transparent 97%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ------------------------------ Přístroje ----------------------------- */
+
+.gauge-ticks .tick-minor { stroke-width: 1; opacity: 0.55; }
+.gauge-dial { filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.55)); }
+.gauge-track { stroke: rgba(160, 178, 255, 0.10); }
+.gauge-hub { fill: #F3F5FF; filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.45)); }
+
+.odometer {
+  position: relative;
+  background: linear-gradient(180deg, #02030A, #070A16);
+  box-shadow: inset 0 3px 12px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(160, 178, 255, 0.10), 0 0 36px -10px var(--glow-soft);
+}
+.odo-digit { overflow: hidden; position: relative; }
+.odo-num { display: block; }
+/* Válečky mají nahoře a dole stín, uprostřed odlesk skla. */
+.odo-digit::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.62), transparent 28%, rgba(255, 255, 255, 0.05) 50%, transparent 72%, rgba(0, 0, 0, 0.62));
+  pointer-events: none;
+}
+
+.cluster-foot { background: rgba(0, 0, 0, 0.30); }
+
+.lamp {
+  background: rgba(2, 4, 12, 0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: border-color 0.2s var(--ease), color 0.2s var(--ease), transform 0.2s var(--ease);
+}
+button.lamp:hover { transform: translateY(-1px); }
+
+/* ------------------------------ Ovládání ------------------------------ */
+
+/* clip (ne hidden): tlačítko se ve flexu nesmí smrštit pod šířku svého textu. */
+.btn-primary { position: relative; overflow: clip; }
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: translateY(1px); }
+
+.btn-primary {
+  background: linear-gradient(180deg, #FFC56B, var(--glow) 55%, #F59E2B);
+  border-color: #FFC978;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 8px 26px -6px rgba(255, 181, 71, 0.45);
+}
+.btn-primary:hover {
+  background: linear-gradient(180deg, #FFD18A, #FFBE5C 55%, #FFA93A);
+  border-color: #FFD79A;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 10px 34px -6px rgba(255, 181, 71, 0.6);
+}
+/* Odlesk, který při najetí přejede přes hlavní tlačítko. */
+.btn-primary::after {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0; left: -60%;
+  width: 45%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  transform: skewX(-18deg);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.btn-ghost { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.btn-ghost:hover { background: rgba(160, 178, 255, 0.09); border-color: var(--border-strong); }
+
+.app-mark { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 26px -4px var(--glow-soft); }
+
+.switch-item {
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  transition: border-color 0.25s var(--ease), background 0.25s var(--ease), color 0.25s var(--ease), transform 0.25s var(--ease), box-shadow 0.25s var(--ease);
+}
+.switch-item:hover { transform: translateY(-2px); }
+.switch-item.active {
+  box-shadow: inset 0 -2px 0 var(--accent), inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 40px -22px var(--accent);
+}
+
+/* Záložky: podtržení se z prostředku roztáhne a svítí barvou značky. */
+.tab { position: relative; }
+.tab.active { border-bottom-color: transparent; }
+.tab::after {
+  content: "";
+  position: absolute;
+  left: 12px; right: 12px; bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 14px var(--accent);
+  transform: scaleX(0);
+  transition: transform 0.35s var(--ease);
+}
+.tab.active::after { transform: scaleX(1); }
+
+.record { transition: border-color 0.25s var(--ease), transform 0.25s var(--ease), box-shadow 0.25s var(--ease); }
+.record:hover { box-shadow: 0 18px 36px -24px rgba(0, 0, 0, 0.9); }
+.record-dot { border-color: #070A18; box-shadow: 0 0 0 3px var(--accent-soft), 0 0 14px var(--accent); }
+
+.bar-fill { box-shadow: 0 0 12px -2px var(--accent); }
+
+.cost-tile, .doc-card, .plan-row, .garage-card, .backup-card, .acc-item, .item-card {
+  transition: border-color 0.2s var(--ease), background 0.2s var(--ease), transform 0.2s var(--ease);
+}
+.cost-tile:hover, .doc-card:hover { transform: translateY(-2px); border-color: var(--border-strong); }
+.plan-row:hover { transform: translateX(3px); }
+
+.modal-overlay { background: rgba(2, 3, 9, 0.62); backdrop-filter: blur(12px) saturate(120%); -webkit-backdrop-filter: blur(12px) saturate(120%); }
+.modal {
+  background: linear-gradient(180deg, rgba(20, 27, 56, 0.92), rgba(8, 12, 28, 0.94));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 50px 120px -20px rgba(0, 0, 0, 0.9);
+}
+@keyframes modalIn { from { opacity: 0; transform: translateY(22px) scale(0.965); } to { opacity: 1; transform: none; } }
+
+.toast { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+
+/* Upozornění leží přímo nad hvězdami – potřebují vlastní tmavý podklad. */
+.alert { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 14px 30px -18px rgba(0, 0, 0, 0.9); }
+.alert-overdue { background: linear-gradient(var(--danger-soft), var(--danger-soft)), rgba(9, 12, 26, 0.80); }
+.alert-soon { background: linear-gradient(var(--warn-soft), var(--warn-soft)), rgba(9, 12, 26, 0.80); }
+.alert:hover { transform: translateY(-2px); }
+
+/* ----------------------------- Přihlášení ----------------------------- */
+
+.auth-gate { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.auth-card {
+  width: min(100%, 430px);
+  padding: 36px 32px 30px;
+  border: 1px solid var(--border-strong);
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(18, 24, 52, 0.70), rgba(5, 8, 20, 0.80));
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 50px 120px -30px rgba(0, 0, 0, 0.85);
+}
+.auth-icon {
+  display: grid; place-items: center;
+  width: 54px; height: 54px;
+  border-radius: 16px;
+  color: var(--glow);
+  font-size: 22px;
+  background: radial-gradient(circle at 50% 30%, #2A3260, #0B1028);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 0 36px -4px var(--glow-soft);
+}
+.auth-card h1 { margin: 18px 0 2px; font-size: 30px; letter-spacing: 0.3px; }
+.auth-card p { color: var(--text-soft); margin: 6px 0 18px; }
+.auth-card form { display: grid; gap: 10px; }
+.auth-card label { margin: 8px 0 0; }
+.auth-card input {
+  min-height: 48px; width: 100%;
+  padding: 10px 14px;
+  color: var(--text);
+  background: var(--input);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  font: 400 15px var(--font);
+  transition: border-color 0.18s var(--ease), box-shadow 0.18s var(--ease);
+}
+.auth-card input:focus { outline: none; border-color: var(--glow); box-shadow: 0 0 0 3px var(--glow-soft); }
+.auth-card .btn { min-height: 46px; }
+.auth-card .btn-primary { margin-top: 10px; }
+.auth-card .btn-primary:disabled { opacity: 0.55; cursor: progress; }
+.auth-card #auth-message { margin: 18px 0 0; font-size: 14px; color: var(--text-dim); }
+
+/* ------------------------------- Pohyb -------------------------------- */
+
+@keyframes riseIn { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+@keyframes dropIn { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: none; } }
+@keyframes swapIn { from { opacity: 0; transform: translateY(10px); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes needleSweep { 0% { transform: rotate(-90deg); } 40%, 54% { transform: rotate(90deg); } }
+@keyframes arcSweep { 0% { stroke-dashoffset: 251.33; } 40%, 54% { stroke-dashoffset: 0; } }
+@keyframes odoRoll { from { transform: translateY(-105%); filter: blur(3px); } to { transform: none; filter: none; } }
+@keyframes barGrow { from { width: 0; } }
+@keyframes recordIn { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+@keyframes orbit { to { --orbit: 360deg; } }
+@keyframes edgeLight { from { background-position: 220% 0; } to { background-position: -120% 0; } }
+@keyframes sheen { from { left: -60%; opacity: 1; } to { left: 130%; opacity: 1; } }
+@keyframes ping { 0% { box-shadow: 0 0 0 0 currentColor; } 70%, 100% { box-shadow: 0 0 0 9px transparent; } }
+@keyframes floaty { 50% { transform: translateY(-7px); } }
+@keyframes glowPulse { 50% { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 34px 0 var(--glow-soft); } }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Načtení: lišta sjede shora, obsah postupně vystoupá. */
+  .app-header { animation: dropIn 0.7s var(--ease) both; }
+  .page > :not(.dash-grid), .dash-grid > * { animation: riseIn 0.8s var(--ease) both; }
+  .page > .cluster { animation-delay: 0.08s; }
+  .page > .alert-strip { animation-delay: 0.16s; }
+  .dash-grid > #workspace { animation-delay: 0.22s; }
+  .dash-grid > .due-panel { animation-delay: 0.32s; }
+  .auth-card { animation: riseIn 0.9s var(--ease) both; }
+  .app-mark, .auth-icon { animation: glowPulse 4.5s ease-in-out infinite; }
+  .empty-hero > i { animation: floaty 5s ease-in-out infinite; }
+
+  .cluster .hero-logo::before { animation: orbit 7s linear infinite; }
+  .cluster-top::before { animation: edgeLight 8s linear infinite; }
+
+  /* Přepnutí stroje: obsah štítu se prolne a ručičky projedou stupnici. */
+  .cluster.sweep .cluster-top, .cluster.sweep .cluster-foot { animation: swapIn 0.6s var(--ease) both; }
+  .cluster.sweep .gauge-needle { animation: needleSweep 1.9s cubic-bezier(0.45, 0, 0.2, 1) 0.25s both; }
+  .cluster.sweep .gauge-fill { animation: arcSweep 1.9s cubic-bezier(0.45, 0, 0.2, 1) 0.25s both; }
+  .cluster.sweep .gauge-value, .cluster.sweep .gauge-label { animation: swapIn 0.7s var(--ease) 1.3s both; }
+  .cluster.sweep .lamp { animation: swapIn 0.5s var(--ease) 0.9s both; }
+  .cluster.sweep ~ .dash-grid .record { animation: recordIn 0.5s var(--ease) both; }
+  .cluster.sweep ~ .dash-grid .record:nth-child(1) { animation-delay: 0.30s; }
+  .cluster.sweep ~ .dash-grid .record:nth-child(2) { animation-delay: 0.38s; }
+  .cluster.sweep ~ .dash-grid .record:nth-child(3) { animation-delay: 0.46s; }
+  .cluster.sweep ~ .dash-grid .record:nth-child(4) { animation-delay: 0.54s; }
+  .cluster.sweep ~ .dash-grid .record:nth-child(n+5) { animation-delay: 0.62s; }
+  .cluster.sweep ~ .dash-grid .due-bar i { animation: barGrow 1s var(--ease) 0.5s both; }
+
+  /* Válečky tachometru se dotočí zleva doprava. */
+  .odo-num { animation: odoRoll 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--i, 0) * 70ms); }
+
+  .tab-panel.active .bar-fill { animation: barGrow 0.9s var(--ease) both; }
+  .btn-primary:hover::after { animation: sheen 0.75s var(--ease); }
+
+  .dot-soon, .dot-overdue { animation: ping 2.2s ease-out infinite; }
+  .dot-soon { color: var(--warn); }
+  .dot-overdue { color: var(--danger); }
+}
+
+@media print {
+  .cluster::after, .cluster-top::before, .cluster .hero-logo::before { display: none; }
+  body { background: #fff; }
+  #hero-title { color: #000; background: none; }
+}

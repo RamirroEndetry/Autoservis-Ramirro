@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Digitální servisní kniha pro auta a motocykly – evidence úkonů, nákladů a připomínek.">
   <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#050818">
+  <meta name="theme-color" content="#03040B">
   <title>Servisní kniha – auta a motocykly</title>
 
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
@@ -15,9 +15,10 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body data-brand="audi">
+  <canvas id="bg-canvas" aria-hidden="true"></canvas>
   <section id="auth-gate" class="auth-gate" aria-labelledby="auth-title">
     <div class="auth-card">
-      <span class="auth-icon" aria-hidden="true">◆</span>
+      <span class="auth-icon" aria-hidden="true"><i class="fa-solid fa-screwdriver-wrench"></i></span>
       <h1 id="auth-title">Autoservis Ramirro</h1>
       <p>Vaše soukromá servisní kniha</p>
       <form id="login-form">
@@ -51,7 +52,6 @@
   </aside>
 
   <a class="skip-link" href="#main">Přeskočit na obsah</a>
-  <canvas id="bg-canvas" aria-hidden="true"></canvas>
 
   <!-- ================================ HLAVIČKA ============================ -->
   <header class="app-header">
