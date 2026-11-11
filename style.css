@@ -1516,7 +1516,11 @@ button.stk-status { cursor: pointer; }
 /* Loga značek jsou zde i široké nápisy (Yamaha, Škoda) – rámeček je proto obdélník. */
 .cluster .hero-logo { width: 96px; height: 68px; border-radius: 18px; padding: 10px 12px; }
 .switch-logo { width: 46px; border-radius: 9px; }
-.switch-logo img { width: 100%; height: 100%; object-fit: contain; }
+.switch-logo { grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
+.switch-logo img { width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: contain; }
+/* Černá jednobarevná loga (Audi, VW) jsou i v přepínači převedená na bílou. */
+.switch-logo img[src$="/audi.svg"], .switch-logo img[src$="/vw.svg"] { filter: invert(1); }
+.switch-logo img[src$="/yamaha.png"] { background: #fff; padding: 2px; border-radius: 3px; }
 
 /* ==========================================================================
    SKLO, SVĚTLO A POHYB
